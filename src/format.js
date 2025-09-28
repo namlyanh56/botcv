@@ -1,7 +1,7 @@
-// Utilities: parse numbers, normalize, and build VCF/TXT content
+// Utilities: parse/build for TXT/VCF + helpers for splitting
 const vCardsJS = require('vcards-js');
 
-// Split text into number tokens by newline/comma/semicolon
+// Existing TXT helpers
 function parseNumbersFromTxt(text) {
   if (!text || typeof text !== 'string') return [];
   const rawTokens = text
@@ -11,78 +11,55 @@ function parseNumbersFromTxt(text) {
   return rawTokens;
 }
 
-// Normalize one number according to requested rules
 function normalizeOne(raw) {
   if (!raw) return '';
-
   const trimmed = String(raw).trim();
-
-  // Detect if original has leading '+'
   const hasPlus = trimmed.startsWith('+');
-
-  // Keep digits only for the rest
   const digits = trimmed.replace(/\D/g, '');
   if (!digits) return '';
-
-  // Special case: if starts with '08' (local ID), convert to +62 and drop leading '0'
-  if (!hasPlus && digits.startsWith('08')) {
-    return '+62' + digits.substring(1);
-  }
-
-  // If already had '+', keep '+' and digits only
-  if (hasPlus) {
-    return '+' + digits;
-  }
-
-  // Otherwise, just prefix '+'
+  if (!hasPlus && digits.startsWith('08')) return '+62' + digits.substring(1);
+  if (hasPlus) return '+' + digits;
   return '+' + digits;
 }
 
 function normalizeNumbers(nums, { deduplicate = true, minDigits = 6 } = {}) {
   const out = [];
   const seen = new Set();
-
   for (const n of nums) {
     const normalized = normalizeOne(n);
     if (!normalized) continue;
-
-    // Ensure minimum digit length (after removing '+')
     const onlyDigits = normalized.replace(/\D/g, '');
     if (onlyDigits.length < minDigits) continue;
-
     if (deduplicate) {
       if (seen.has(normalized)) continue;
       seen.add(normalized);
     }
     out.push(normalized);
   }
-
   return out;
 }
 
 function buildVcf(numbers, baseContactName) {
   const many = numbers.length > 1;
   const chunks = [];
-
   numbers.forEach((num, idx) => {
     const vCard = vCardsJS();
-    const contactName = many ? `${baseContactName} ${String(idx + 1).padStart(3, '0')}` : baseContactName;
-
+    const contactName = many
+      ? `${baseContactName} ${String(idx + 1).padStart(3, '0')}`
+      : baseContactName;
     vCard.version = '3.0';
     vCard.formattedName = contactName;
     vCard.cellPhone = num;
-
     const vcf = vCard.getFormattedString();
     chunks.push(vcf.trim());
   });
-
   const content = chunks.join('\n');
   return Buffer.from(content, 'utf8');
 }
 
 function sanitizeFilename(name) {
   let n = String(name || '').trim();
-  n = n.replace(/[/\\?%*:|"<>]/g, ''); // Windows-invalid chars
+  n = n.replace(/[/\\?%*:|"<>]/g, '');
   n = n.replace(/\s+/g, ' ').trim();
   if (!n) n = 'contacts';
   return n;
@@ -90,9 +67,7 @@ function sanitizeFilename(name) {
 
 function ensureVcfExtension(name) {
   let n = String(name || '').trim();
-  if (!n.toLowerCase().endsWith('.vcf')) {
-    n += '.vcf';
-  }
+  if (!n.toLowerCase().endsWith('.vcf')) n += '.vcf';
   return n;
 }
 
@@ -107,22 +82,13 @@ function deriveDefaultVcfNameFromTxt(txtName) {
   return ensureVcfExtension(sanitizeFilename(base));
 }
 
-/**
- * Generate sequential filenames for multiple files based on a base input.
- * Rules:
- * - If count === 1: return [base.vcf] (no numbering).
- * - If base ends with digits (e.g., "DF10"): produce ["DF10.vcf", "DF11.vcf", ...]
- * - Otherwise: produce ["base 1.vcf", "base 2.vcf", ...]
- */
 function generateSequentialFilenames(baseInput, count) {
   const base = sanitizeFilename(stripVcfExtension(baseInput || 'contacts'));
   const results = [];
-
   if (count <= 1) {
     results.push(ensureVcfExtension(base));
     return results;
   }
-
   const m = base.match(/(\d+)$/);
   if (m) {
     const digits = m[1];
@@ -142,12 +108,9 @@ function generateSequentialFilenames(baseInput, count) {
 }
 
 // ---------- VCF -> TXT helpers ----------
-
 function ensureTxtExtension(name) {
   let n = String(name || '').trim();
-  if (!n.toLowerCase().endsWith('.txt')) {
-    n += '.txt';
-  }
+  if (!n.toLowerCase().endsWith('.txt')) n += '.txt';
   return n;
 }
 
@@ -162,21 +125,13 @@ function deriveDefaultTxtNameFromVcf(vcfName) {
   return ensureTxtExtension(sanitizeFilename(base));
 }
 
-/**
- * Generate sequential .txt filenames for multiple files, similar to generateSequentialFilenames.
- * - If count === 1 -> base.txt
- * - If base ends with digits: DF10.txt, DF11.txt, ...
- * - Else: base 1.txt, base 2.txt, ...
- */
 function generateSequentialTextFilenames(baseInput, count) {
   const base = sanitizeFilename(stripTxtExtension(baseInput || 'numbers'));
   const results = [];
-
   if (count <= 1) {
     results.push(ensureTxtExtension(base));
     return results;
   }
-
   const m = base.match(/(\d+)$/);
   if (m) {
     const digits = m[1];
@@ -195,9 +150,6 @@ function generateSequentialTextFilenames(baseInput, count) {
   return results;
 }
 
-/**
- * Unfold VCF lines: join lines that start with space or tab to the previous line.
- */
 function unfoldVcf(text) {
   if (!text || typeof text !== 'string') return '';
   const raw = text.replace(/\r\n/g, '\n');
@@ -213,57 +165,136 @@ function unfoldVcf(text) {
   return out.join('\n');
 }
 
-/**
- * Extract phone numbers from a VCF text by collecting TEL fields.
- * Supports formats like:
- * - TEL:+6281...
- * - TEL;TYPE=CELL:+6281...
- * - TEL;VALUE=uri:tel:+6281...
- * - item1.TEL:+6281...
- */
 function parseNumbersFromVcf(text) {
   const unfolded = unfoldVcf(text);
   const lines = unfolded.split('\n');
   const numbers = [];
-
   const telRegex = /^(?:item\d+\.)?tel(?:;[^:]*)?:(.+)$/i;
-
   for (let line of lines) {
     const m = line.match(telRegex);
     if (!m) continue;
     let val = m[1].trim();
-
-    // Handle tel: prefix if present
-    if (/^tel:/i.test(val)) {
-      val = val.replace(/^tel:/i, '');
-    }
-
-    // Some cards might have multiple values separated by commas; split cautiously
-    const parts = val.split(/[,]/).map(s => s.trim()).filter(Boolean);
-    for (const p of parts) {
-      numbers.push(p);
-    }
+    if (/^tel:/i.test(val)) val = val.replace(/^tel:/i, '');
+    const parts = val.split(/[,]/).map((s) => s.trim()).filter(Boolean);
+    for (const p of parts) numbers.push(p);
   }
-
   return numbers;
 }
 
+// ---------- Split helpers ----------
+function splitVcfIntoBlocks(text) {
+  if (!text || typeof text !== 'string') return [];
+  const re = /BEGIN:VCARD[\s\S]*?END:VCARD/gi;
+  const blocks = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    blocks.push(m[0].trim());
+  }
+  return blocks;
+}
+
+function buildVcfFromBlocks(blocks) {
+  const content = blocks.join('\n') + (blocks.length ? '\n' : '');
+  return Buffer.from(content, 'utf8');
+}
+
+// For splitting TXT: preserve lines order, remove empty lines; do not normalize/dedup
+function parseLinesFromTxtRaw(text) {
+  if (!text || typeof text !== 'string') return [];
+  return text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function buildTxtFromLines(lines) {
+  const content = lines.join('\n') + (lines.length ? '\n' : '');
+  return Buffer.from(content, 'utf8');
+}
+
+function splitArrayByFixedSize(arr, size) {
+  const out = [];
+  if (size <= 0) return out;
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+function splitArrayIntoNParts(arr, parts) {
+  const n = Math.max(1, Math.min(parts, arr.length));
+  const out = [];
+  const base = Math.floor(arr.length / n);
+  let rem = arr.length % n;
+  let idx = 0;
+  for (let i = 0; i < n; i++) {
+    const take = base + (rem > 0 ? 1 : 0);
+    rem = Math.max(0, rem - 1);
+    out.push(arr.slice(idx, idx + take));
+    idx += take;
+  }
+  return out;
+}
+
+function getLowerExt(name) {
+  const m = String(name || '').match(/\.([a-z0-9]+)$/i);
+  return m ? `.${m[1].toLowerCase()}` : '';
+}
+
+function removeExt(name) {
+  return String(name || '').replace(/\.[^.]+$/i, '');
+}
+
+function generateDefaultSequentialNamesFromSource(sourceName, count) {
+  const ext = getLowerExt(sourceName);
+  const base = sanitizeFilename(removeExt(sourceName));
+  if (ext === '.vcf') {
+    return generateSequentialFilenames(base, count);
+  }
+  if (ext === '.txt') {
+    return generateSequentialTextFilenames(base, count);
+  }
+  // fallback .txt
+  return generateSequentialTextFilenames(base, count);
+}
+
+function generateCustomSequentialNames(baseInput, count, ext) {
+  const base = sanitizeFilename(baseInput || '');
+  if (ext === '.vcf') {
+    return generateSequentialFilenames(base, count);
+  }
+  return generateSequentialTextFilenames(base, count);
+}
+
 module.exports = {
-  // TXT helpers
+  // Existing exports
   parseNumbersFromTxt,
   normalizeNumbers,
   buildVcf,
   sanitizeFilename,
   ensureVcfExtension,
-  deriveDefaultVcfNameFromTxt,
   stripVcfExtension,
+  deriveDefaultVcfNameFromTxt,
   generateSequentialFilenames,
 
-  // VCF -> TXT helpers
   ensureTxtExtension,
   stripTxtExtension,
   deriveDefaultTxtNameFromVcf,
   generateSequentialTextFilenames,
+
   unfoldVcf,
   parseNumbersFromVcf,
+
+  // New for split
+  splitVcfIntoBlocks,
+  buildVcfFromBlocks,
+  parseLinesFromTxtRaw,
+  buildTxtFromLines,
+  splitArrayByFixedSize,
+  splitArrayIntoNParts,
+  getLowerExt,
+  removeExt,
+  generateDefaultSequentialNamesFromSource,
+  generateCustomSequentialNames,
 };
