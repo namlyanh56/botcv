@@ -4,10 +4,11 @@ const actions = {
   START_SPLIT_FILE: 'action:split_file:start',
   START_ADMIN_FROM_MESSAGE: 'action:admin_from_message:start',
   START_MERGE_FILES: 'action:merge_files:start',
+  START_XLSX_TO_VCF: 'action:xlsx_to_vcf:start',
 
   MERGE_DONE: 'action:merge_files:done',
 
-  // Reuse filename choices for other flows
+  // Reuse filename choices
   FILENAME_CUSTOM: 'action:txt_to_vcf:filename_custom',
   FILENAME_DEFAULT: 'action:txt_to_vcf:filename_default',
 
@@ -27,6 +28,7 @@ function getMainMenu() {
         [{ text: '📂Pecah File📂', callback_data: actions.START_SPLIT_FILE }],
         [{ text: '👤CV Admin👤', callback_data: actions.START_ADMIN_FROM_MESSAGE }],
         [{ text: '🗃️Gabung File🗃️', callback_data: actions.START_MERGE_FILES }],
+        [{ text: '🧩XLSX to VCF🧩', callback_data: actions.START_XLSX_TO_VCF }],
       ],
     },
   };
