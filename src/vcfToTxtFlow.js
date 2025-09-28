@@ -141,8 +141,12 @@ function createVcfToTxtFlow(bot, sessions) {
 
       await bot.answerCallbackQuery(query.id);
 
+      // Hanya flow aktif yang merespon CANCEL (agar tidak spam)
       if (data === actions.CANCEL) {
-        return handleCancel(chatId);
+        if (session.state !== STATES.IDLE) {
+          return handleCancel(chatId);
+        }
+        return;
       }
 
       if (data === actions.START_VCF_TO_TXT) {
