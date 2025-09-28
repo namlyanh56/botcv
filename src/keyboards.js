@@ -1,10 +1,18 @@
-// Minimal inline keyboard builders
+\// Minimal inline keyboard builders
 
 const actions = {
   START_TXT_TO_VCF: 'action:txt_to_vcf:start',
   START_VCF_TO_TXT: 'action:vcf_to_txt:start',
+  START_SPLIT_FILE: 'action:split_file:start',
+
+  // Reuse filename choices for all flows
   FILENAME_CUSTOM: 'action:txt_to_vcf:filename_custom',
   FILENAME_DEFAULT: 'action:txt_to_vcf:filename_default',
+
+  // Split mode
+  SPLIT_MODE_CONTACTS: 'action:split_file:mode_contacts',
+  SPLIT_MODE_FILES: 'action:split_file:mode_files',
+
   CANCEL: 'action:cancel',
 };
 
@@ -14,6 +22,7 @@ function getMainMenu() {
       inline_keyboard: [
         [{ text: '📒TXT to VCF📒', callback_data: actions.START_TXT_TO_VCF }],
         [{ text: '📗VCF to TXT📗', callback_data: actions.START_VCF_TO_TXT }],
+        [{ text: '📂Pecah File📂', callback_data: actions.START_SPLIT_FILE }],
       ],
     },
   };
@@ -41,9 +50,24 @@ function getFilenameChoiceMenu() {
   };
 }
 
+function getSplitModeMenu() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: 'Jumlah CTC👥', callback_data: actions.SPLIT_MODE_CONTACTS },
+          { text: 'Jumlah File📚', callback_data: actions.SPLIT_MODE_FILES },
+        ],
+        [{ text: 'Batal', callback_data: actions.CANCEL }],
+      ],
+    },
+  };
+}
+
 module.exports = {
   actions,
   getMainMenu,
   getCancelMenu,
   getFilenameChoiceMenu,
+  getSplitModeMenu,
 };
