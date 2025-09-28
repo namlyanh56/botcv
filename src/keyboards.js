@@ -19,21 +19,35 @@ const actions = {
   CANCEL: 'action:cancel',
 };
 
+// Label untuk Reply Keyboard Menu Utama (agar konsisten di index.js)
+const menuLabels = {
+  TXT_TO_VCF: '📒TXT to VCF📒',
+  XLSX_TO_VCF: '🧩XLSX to VCF🧩',
+  VCF_TO_TXT: '📗VCF to TXT📗',
+  ADMIN_FROM_MSG: '👤CV Admin👤',
+  SPLIT_FILE: '📂Pecah File📂',
+  MERGE_FILES: '🗃️Gabung File🗃️',
+};
+
+// MENU UTAMA: Reply Keyboard (persisten di bawah kolom chat)
 function getMainMenu() {
   return {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '📒TXT to VCF📒', callback_data: actions.START_TXT_TO_VCF }],
-        [{ text: '📗VCF to TXT📗', callback_data: actions.START_VCF_TO_TXT }],
-        [{ text: '📂Pecah File📂', callback_data: actions.START_SPLIT_FILE }],
-        [{ text: '👤CV Admin👤', callback_data: actions.START_ADMIN_FROM_MESSAGE }],
-        [{ text: '🗃️Gabung File🗃️', callback_data: actions.START_MERGE_FILES }],
-        [{ text: '🧩XLSX to VCF🧩', callback_data: actions.START_XLSX_TO_VCF }],
+      keyboard: [
+        // Fitur convert berdekatan
+        [{ text: menuLabels.TXT_TO_VCF }, { text: menuLabels.XLSX_TO_VCF }],
+        [{ text: menuLabels.VCF_TO_TXT }, { text: menuLabels.ADMIN_FROM_MSG }],
+        // Pecah dan Gabung bersandingan
+        [{ text: menuLabels.SPLIT_FILE }, { text: menuLabels.MERGE_FILES }],
       ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
+      is_persistent: true,
     },
   };
 }
 
+// Tetap gunakan inline untuk langkah-langkah lanjutan
 function getCancelMenu() {
   return {
     reply_markup: {
@@ -84,6 +98,7 @@ function getMergeCollectMenu() {
 
 module.exports = {
   actions,
+  menuLabels,
   getMainMenu,
   getCancelMenu,
   getFilenameChoiceMenu,
