@@ -1,6 +1,14 @@
 // Flow state machine for 📒TXT to VCF📒
 const fs = require('fs');
 const path = require('path');
+
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getCancelMenu,
@@ -290,6 +298,11 @@ function createTxtToVcfFlow(bot, sessions) {
           let producedCount = 0;
 
           for (let i = 0; i < filesToProcess.length; i++) {
+            if (stop.shouldStop && stop.shouldStop(chatId)) {
+              await bot.sendMessage(chatId, 'Dihentikan.');
+              break;
+            }
+
             const f = filesToProcess[i];
             const tokens = parseNumbersFromTxt(f.txtContent);
 
@@ -324,6 +337,13 @@ function createTxtToVcfFlow(bot, sessions) {
             ensureTmpDir();
             const outPath = path.join(TMP_DIR, filename);
             await fs.promises.writeFile(outPath, vcfBuffer);
+
+            if (stop.shouldStop && stop.shouldStop(chatId)) {
+              await fs.promises.unlink(outPath).catch(() => {});
+              await bot.sendMessage(chatId, 'Dihentikan.');
+              break;
+            }
+
             await bot.sendDocument(chatId, outPath);
             await fs.promises.unlink(outPath).catch(() => {});
 
@@ -342,8 +362,7 @@ function createTxtToVcfFlow(bot, sessions) {
 
           // Kirim pesan terpisah setelah semua file terkirim
           await bot.sendMessage(chatId, 'File berhasil dikonversi');
-          // Hapus kembalikan otomatis ke menu
-          await bot.sendMessage(chatId, 'Selesai.');
+          // HAPUS pengiriman "Selesai."
         } catch (err) {
           console.error('Processing error:', err);
           await bot.sendMessage(
