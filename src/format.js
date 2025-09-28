@@ -1,4 +1,4 @@
-// Utilities: parse numbers, normalize, and build VCF content
+// Utilities: parse numbers, normalize, and build VCF/TXT content
 const vCardsJS = require('vcards-js');
 
 // Split text into number tokens by newline/comma/semicolon
@@ -26,7 +26,6 @@ function normalizeOne(raw) {
 
   // Special case: if starts with '08' (local ID), convert to +62 and drop leading '0'
   if (!hasPlus && digits.startsWith('08')) {
-    // '08123456789' -> '+628123456789'
     return '+62' + digits.substring(1);
   }
 
@@ -69,12 +68,11 @@ function buildVcf(numbers, baseContactName) {
     const vCard = vCardsJS();
     const contactName = many ? `${baseContactName} ${String(idx + 1).padStart(3, '0')}` : baseContactName;
 
-    // Set vCard fields
     vCard.version = '3.0';
     vCard.formattedName = contactName;
     vCard.cellPhone = num;
 
-    const vcf = vCard.getFormattedString(); // includes BEGIN/END:VCARD
+    const vcf = vCard.getFormattedString();
     chunks.push(vcf.trim());
   });
 
@@ -83,7 +81,6 @@ function buildVcf(numbers, baseContactName) {
 }
 
 function sanitizeFilename(name) {
-  // Remove invalid filename characters and trim
   let n = String(name || '').trim();
   n = n.replace(/[/\\?%*:|"<>]/g, ''); // Windows-invalid chars
   n = n.replace(/\s+/g, ' ').trim();
@@ -129,7 +126,7 @@ function generateSequentialFilenames(baseInput, count) {
   const m = base.match(/(\d+)$/);
   if (m) {
     const digits = m[1];
-    const prefix = base.slice(0, -digits.length); // keep any spaces as typed
+    const prefix = base.slice(0, -digits.length);
     let start = parseInt(digits, 10);
     for (let i = 0; i < count; i++) {
       const name = `${prefix}${start + i}`;
@@ -144,7 +141,115 @@ function generateSequentialFilenames(baseInput, count) {
   return results;
 }
 
+// ---------- VCF -> TXT helpers ----------
+
+function ensureTxtExtension(name) {
+  let n = String(name || '').trim();
+  if (!n.toLowerCase().endsWith('.txt')) {
+    n += '.txt';
+  }
+  return n;
+}
+
+function stripTxtExtension(name) {
+  if (!name) return '';
+  return String(name).replace(/\.txt$/i, '');
+}
+
+function deriveDefaultTxtNameFromVcf(vcfName) {
+  if (!vcfName) return 'numbers.txt';
+  const base = vcfName.replace(/\.vcf$/i, '');
+  return ensureTxtExtension(sanitizeFilename(base));
+}
+
+/**
+ * Generate sequential .txt filenames for multiple files, similar to generateSequentialFilenames.
+ * - If count === 1 -> base.txt
+ * - If base ends with digits: DF10.txt, DF11.txt, ...
+ * - Else: base 1.txt, base 2.txt, ...
+ */
+function generateSequentialTextFilenames(baseInput, count) {
+  const base = sanitizeFilename(stripTxtExtension(baseInput || 'numbers'));
+  const results = [];
+
+  if (count <= 1) {
+    results.push(ensureTxtExtension(base));
+    return results;
+  }
+
+  const m = base.match(/(\d+)$/);
+  if (m) {
+    const digits = m[1];
+    const prefix = base.slice(0, -digits.length);
+    let start = parseInt(digits, 10);
+    for (let i = 0; i < count; i++) {
+      const name = `${prefix}${start + i}`;
+      results.push(ensureTxtExtension(sanitizeFilename(name)));
+    }
+  } else {
+    for (let i = 0; i < count; i++) {
+      const name = `${base} ${i + 1}`;
+      results.push(ensureTxtExtension(sanitizeFilename(name)));
+    }
+  }
+  return results;
+}
+
+/**
+ * Unfold VCF lines: join lines that start with space or tab to the previous line.
+ */
+function unfoldVcf(text) {
+  if (!text || typeof text !== 'string') return '';
+  const raw = text.replace(/\r\n/g, '\n');
+  const lines = raw.split('\n');
+  const out = [];
+  for (const line of lines) {
+    if (/^[ \t]/.test(line) && out.length > 0) {
+      out[out.length - 1] += line.replace(/^[ \t]+/, '');
+    } else {
+      out.push(line);
+    }
+  }
+  return out.join('\n');
+}
+
+/**
+ * Extract phone numbers from a VCF text by collecting TEL fields.
+ * Supports formats like:
+ * - TEL:+6281...
+ * - TEL;TYPE=CELL:+6281...
+ * - TEL;VALUE=uri:tel:+6281...
+ * - item1.TEL:+6281...
+ */
+function parseNumbersFromVcf(text) {
+  const unfolded = unfoldVcf(text);
+  const lines = unfolded.split('\n');
+  const numbers = [];
+
+  const telRegex = /^(?:item\d+\.)?tel(?:;[^:]*)?:(.+)$/i;
+
+  for (let line of lines) {
+    const m = line.match(telRegex);
+    if (!m) continue;
+    let val = m[1].trim();
+
+    // Handle tel: prefix if present
+    if (/^tel:/i.test(val)) {
+      val = val.replace(/^tel:/i, '');
+    }
+
+    // Some cards might have multiple values separated by commas; split cautiously
+    const parts = val.split(/[,]/).map(s => s.trim()).filter(Boolean);
+    for (const p of parts) {
+      numbers.push(p);
+    }
+  }
+
+  return numbers;
+}
+
 module.exports = {
+  // TXT helpers
   parseNumbersFromTxt,
   normalizeNumbers,
   buildVcf,
@@ -153,4 +258,12 @@ module.exports = {
   deriveDefaultVcfNameFromTxt,
   stripVcfExtension,
   generateSequentialFilenames,
+
+  // VCF -> TXT helpers
+  ensureTxtExtension,
+  stripTxtExtension,
+  deriveDefaultTxtNameFromVcf,
+  generateSequentialTextFilenames,
+  unfoldVcf,
+  parseNumbersFromVcf,
 };
