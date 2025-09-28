@@ -320,8 +320,11 @@ function createTxtToVcfFlow(bot, sessions) {
               chatId,
               vcfBuffer,
               { filename, contentType: 'text/vcard' }
-              await bot.sendMessage(chatId, 'File berhasil dikonversi');
+              
             );
+            await bot.sendMessage(chatId, 'File berhasil dikonversi');
+
+          }
 
             producedCount++;
           }
