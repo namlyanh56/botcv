@@ -162,8 +162,12 @@ function createTxtToVcfFlow(bot, sessions) {
       // Acknowledge callback to stop loading state
       await bot.answerCallbackQuery(query.id);
 
+      // Hanya flow aktif yang merespon CANCEL (agar tidak spam)
       if (data === actions.CANCEL) {
-        return handleCancel(chatId);
+        if (session.state !== STATES.IDLE) {
+          return handleCancel(chatId);
+        }
+        return;
       }
 
       if (data === actions.START_TXT_TO_VCF) {
