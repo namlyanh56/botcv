@@ -1,10 +1,10 @@
-
 const actions = {
   START_TXT_TO_VCF: 'action:txt_to_vcf:start',
   START_VCF_TO_TXT: 'action:vcf_to_txt:start',
   START_SPLIT_FILE: 'action:split_file:start',
+  START_ADMIN_FROM_MESSAGE: 'action:admin_from_message:start',
 
-  // Reuse filename choices for all flows
+  // Reuse filename choices for other flows (not used in Admin flow)
   FILENAME_CUSTOM: 'action:txt_to_vcf:filename_custom',
   FILENAME_DEFAULT: 'action:txt_to_vcf:filename_default',
 
@@ -22,6 +22,7 @@ function getMainMenu() {
         [{ text: '📒TXT to VCF📒', callback_data: actions.START_TXT_TO_VCF }],
         [{ text: '📗VCF to TXT📗', callback_data: actions.START_VCF_TO_TXT }],
         [{ text: '📂Pecah File📂', callback_data: actions.START_SPLIT_FILE }],
+        [{ text: '👤CV Admin👤', callback_data: actions.START_ADMIN_FROM_MESSAGE }],
       ],
     },
   };
