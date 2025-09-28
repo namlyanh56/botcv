@@ -7,6 +7,7 @@ const { createVcfToTxtFlow } = require('./src/vcfToTxtFlow');
 const { createSplitFlow } = require('./src/splitFlow');
 const { createAdminFromMessageFlow } = require('./src/adminFromMessageFlow');
 const { createMergeFlow } = require('./src/mergeFlow');
+const { createXlsxToVcfFlow } = require('./src/xlsxToVcfFlow');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -24,12 +25,14 @@ async function main() {
   const sessionsSplit = new Map();
   const sessionsAdmin = new Map();
   const sessionsMerge = new Map();
+  const sessionsXlsx = new Map();
 
   const txtToVcfFlow = createTxtToVcfFlow(bot, sessionsTxtToVcf);
   const vcfToTxtFlow = createVcfToTxtFlow(bot, sessionsVcfToTxt);
   const splitFlow = createSplitFlow(bot, sessionsSplit);
   const adminFlow = createAdminFromMessageFlow(bot, sessionsAdmin);
   const mergeFlow = createMergeFlow(bot, sessionsMerge);
+  const xlsxFlow = createXlsxToVcfFlow(bot, sessionsXlsx);
 
   bot.onText(/^\/start$/, async (msg) => {
     await bot.sendMessage(
@@ -45,6 +48,7 @@ async function main() {
     await splitFlow.handleCallbackQuery(query);
     await adminFlow.handleCallbackQuery(query);
     await mergeFlow.handleCallbackQuery(query);
+    await xlsxFlow.handleCallbackQuery(query);
   });
 
   bot.on('message', async (msg) => {
@@ -54,6 +58,7 @@ async function main() {
     await splitFlow.handleMessage(msg);
     await adminFlow.handleMessage(msg);
     await mergeFlow.handleMessage(msg);
+    await xlsxFlow.handleMessage(msg);
   });
 
   console.log('Bot is running with index.js as entry point...');
