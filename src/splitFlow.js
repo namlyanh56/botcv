@@ -68,7 +68,8 @@ function initSession(sessions, chatId) {
     outputBaseName: '',
     numberParam: 0, // contacts-per-file or files-count
     createdAt: Date.now(),
-    lastPromptMsgId: null, // for optional edit
+    lastPromptMsgId: null, // for message deletion
+    fileLocked: false,      // lock to prevent multiple uploads race
   };
   sessions.set(chatId, s);
   return s;
@@ -94,6 +95,8 @@ function createSplitFlow(bot, sessions) {
     s.filenameChoice = '';
     s.outputBaseName = '';
     s.numberParam = 0;
+    s.fileLocked = false;
+
     const sent = await bot.sendMessage(
       chatId,
       'Pilih mode pemecahan:',
@@ -114,9 +117,14 @@ function createSplitFlow(bot, sessions) {
       const s = getSession(sessions, chatId);
       await bot.answerCallbackQuery(query.id);
 
+      // Hanya flow aktif yang merespon CANCEL (agar tidak spam)
       if (data === actions.CANCEL) {
-        return handleCancel(chatId);
+        if (s.state !== STATES.IDLE) {
+          return handleCancel(chatId);
+        }
+        return;
       }
+
       if (data === actions.START_SPLIT_FILE) {
         return handleStart(chatId);
       }
@@ -133,6 +141,13 @@ function createSplitFlow(bot, sessions) {
               { chat_id: chatId, message_id: s.lastPromptMsgId }
             );
           } catch (_) {}
+
+          // Hapus pesan "Pilih mode pemecahan:" agar chatnya ikut hilang
+          try {
+            await bot.deleteMessage(chatId, s.lastPromptMsgId);
+          } catch (_) {}
+
+          s.lastPromptMsgId = null;
 
           return bot.sendMessage(
             chatId,
@@ -173,7 +188,7 @@ function createSplitFlow(bot, sessions) {
       const s = getSession(sessions, chatId);
       if (s.state === STATES.IDLE) return;
 
-      // One-file-only acceptance
+      // One-file-only acceptance with hard lock
       if (s.state === STATES.WAITING_FILE_UPLOAD && msg.document) {
         const doc = msg.document;
 
@@ -193,19 +208,26 @@ function createSplitFlow(bot, sessions) {
             getCancelMenu()
           );
         }
-        if (s.rawContent) {
+
+        // Jika sudah ada file atau sedang proses menerima file lain, tolak
+        if (s.fileLocked || s.rawContent) {
           return bot.sendMessage(
             chatId,
-            'Hanya satu file yang diperbolehkan pada sesi ini. Gunakan Batal untuk memulai ulang.',
+            'Maaf,kirimkan file satu per sesi untuk mencegah eror dan spam',
             getCancelMenu()
           );
         }
+
+        // Kunci sesi agar upload ganda ditolak
+        s.fileLocked = true;
 
         ensureTmpDir();
         const filePath = await bot.downloadFile(doc.file_id, TMP_DIR);
         const content = await fs.promises.readFile(filePath, 'utf8').catch(() => '');
         fs.promises.unlink(filePath).catch(() => {});
         if (!content) {
+          // Lepas kunci agar user bisa coba lagi
+          s.fileLocked = false;
           return bot.sendMessage(
             chatId,
             'Gagal membaca file. Coba lagi.',
@@ -216,6 +238,8 @@ function createSplitFlow(bot, sessions) {
         s.sourceFileName = doc.file_name || 'input.txt';
         s.fileExt = getLowerExt(s.sourceFileName) || '.txt';
         s.rawContent = content;
+
+        // Tetap lock agar tidak bisa kirim file kedua
         s.state = STATES.WAITING_FILENAME_CHOICE;
 
         return bot.sendMessage(
