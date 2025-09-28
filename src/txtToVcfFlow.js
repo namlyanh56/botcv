@@ -322,11 +322,9 @@ function createTxtToVcfFlow(bot, sessions) {
               { filename, contentType: 'text/vcard' }
               
             );
-            await bot.sendMessage(chatId, 'File berhasil dikonversi');
-
-          }
 
             producedCount++;
+            await bot.sendMessage(chatId, 'File berhasil dikonversi');
           }
           
           if (producedCount === 0) {
