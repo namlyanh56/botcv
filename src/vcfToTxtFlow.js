@@ -1,6 +1,14 @@
 // Flow state machine for 📗VCF to TXT📗
 const fs = require('fs');
 const path = require('path');
+
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getCancelMenu,
@@ -246,6 +254,11 @@ function createVcfToTxtFlow(bot, sessions) {
       let producedCount = 0;
 
       for (let i = 0; i < filesToProcess.length; i++) {
+        if (stop.shouldStop && stop.shouldStop(chatId)) {
+          await bot.sendMessage(chatId, 'Dihentikan.');
+          break;
+        }
+
         const f = filesToProcess[i];
         const rawNums = parseNumbersFromVcf(f.vcfContent);
         // Deduplicate per file
@@ -259,6 +272,13 @@ function createVcfToTxtFlow(bot, sessions) {
         ensureTmpDir();
         const outPath = path.join(TMP_DIR, filename);
         await fs.promises.writeFile(outPath, content, 'utf8');
+
+        if (stop.shouldStop && stop.shouldStop(chatId)) {
+          await fs.promises.unlink(outPath).catch(() => {});
+          await bot.sendMessage(chatId, 'Dihentikan.');
+          break;
+        }
+
         await bot.sendDocument(chatId, outPath);
         await fs.promises.unlink(outPath).catch(() => {});
 
@@ -276,7 +296,7 @@ function createVcfToTxtFlow(bot, sessions) {
       }
 
       await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      await bot.sendMessage(chatId, 'Selesai.');
+      // HAPUS pengiriman "Selesai."
     } catch (err) {
       console.error('vcfToTxt processing error:', err);
       await bot.sendMessage(
