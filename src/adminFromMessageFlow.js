@@ -2,6 +2,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getCancelMenu,
@@ -256,12 +263,18 @@ function createAdminFromMessageFlow(bot, sessions) {
       ensureTmpDir();
       const outPath = path.join(TMP_DIR, s.outputFileName || 'contacts.vcf');
       await fs.promises.writeFile(outPath, vcfBuffer);
+
+      if (stop.shouldStop && stop.shouldStop(chatId)) {
+        await fs.promises.unlink(outPath).catch(() => {});
+        await bot.sendMessage(chatId, 'Dihentikan.');
+        return;
+      }
+
       await bot.sendDocument(chatId, outPath);
       await fs.promises.unlink(outPath).catch(() => {});
 
       await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      // Tidak kembali otomatis ke menu utama, sesuai tujuan sebelumnya
-      await bot.sendMessage(chatId, 'Selesai.');
+      // HAPUS pengiriman "Selesai."
     } catch (err) {
       console.error('adminFromMessage processing error:', err);
       await bot.sendMessage(
