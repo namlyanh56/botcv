@@ -2,6 +2,7 @@
 
 const actions = {
   START_TXT_TO_VCF: 'action:txt_to_vcf:start',
+  START_VCF_TO_TXT: 'action:vcf_to_txt:start',
   FILENAME_CUSTOM: 'action:txt_to_vcf:filename_custom',
   FILENAME_DEFAULT: 'action:txt_to_vcf:filename_default',
   CANCEL: 'action:cancel',
@@ -12,6 +13,7 @@ function getMainMenu() {
     reply_markup: {
       inline_keyboard: [
         [{ text: '📒TXT to VCF📒', callback_data: actions.START_TXT_TO_VCF }],
+        [{ text: '📗VCF to TXT📗', callback_data: actions.START_VCF_TO_TXT }],
       ],
     },
   };
