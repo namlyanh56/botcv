@@ -1,17 +1,19 @@
 {
-  "name": "telegram-txt-to-vcf-bot",
-  "version": "1.0.0",
-  "description": "Telegram bot to convert TXT phone lists to VCF with simple normalization",
-  "main": "src/index.js",
-  "type": "commonjs",
+  "name": "telegram-bot-txt-to-vcf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telegram bot: convert TXT (phone list) to VCF with inline keyboard flow.",
+  "main": "src/bot.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node src/index.js"
+    "start": "node src/bot.js",
+    "dev": "nodemon src/bot.js"
   },
   "dependencies": {
-    "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.66.0",
     "vcards-js": "^2.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
