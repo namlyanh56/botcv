@@ -342,9 +342,8 @@ function createTxtToVcfFlow(bot, sessions) {
 
           // Kirim pesan terpisah setelah semua file terkirim
           await bot.sendMessage(chatId, 'File berhasil dikonversi');
-
-          // Back to main menu
-          await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
+          // Hapus kembalikan otomatis ke menu
+          await bot.sendMessage(chatId, 'Selesai.');
         } catch (err) {
           console.error('Processing error:', err);
           await bot.sendMessage(
