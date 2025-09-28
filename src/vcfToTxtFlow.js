@@ -248,7 +248,7 @@ function createVcfToTxtFlow(bot, sessions) {
       for (let i = 0; i < filesToProcess.length; i++) {
         const f = filesToProcess[i];
         const rawNums = parseNumbersFromVcf(f.vcfContent);
-        // Deduplicate per file as requested
+        // Deduplicate per file
         const normalized = normalizeNumbers(rawNums, { deduplicate: true, minDigits: 6 });
 
         if (!normalized.length) continue;
@@ -275,9 +275,8 @@ function createVcfToTxtFlow(bot, sessions) {
         return;
       }
 
-      // Send completion message once
       await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
+      await bot.sendMessage(chatId, 'Selesai.');
     } catch (err) {
       console.error('vcfToTxt processing error:', err);
       await bot.sendMessage(
