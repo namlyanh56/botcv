@@ -3,6 +3,7 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const { getMainMenu } = require('./src/keyboards');
 const { createTxtToVcfFlow } = require('./src/txtToVcfFlow');
+const { createVcfToTxtFlow } = require('./src/vcfToTxtFlow');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -14,11 +15,13 @@ if (!BOT_TOKEN) {
 async function main() {
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-  // In-memory session store per chatId
-  const sessions = new Map();
+  // In-memory session stores per flow
+  const sessionsTxtToVcf = new Map();
+  const sessionsVcfToTxt = new Map();
 
   // Init and mount feature flows here
-  const txtToVcfFlow = createTxtToVcfFlow(bot, sessions);
+  const txtToVcfFlow = createTxtToVcfFlow(bot, sessionsTxtToVcf);
+  const vcfToTxtFlow = createVcfToTxtFlow(bot, sessionsVcfToTxt);
 
   // Global commands
   bot.onText(/^\/start$/, async (msg) => {
@@ -31,17 +34,16 @@ async function main() {
 
   // Inline callbacks
   bot.on('callback_query', async (query) => {
+    // Delegate to both flows; each will handle only its actions/states
     await txtToVcfFlow.handleCallbackQuery(query);
-    // Di masa depan, mount flow lain di sini juga
+    await vcfToTxtFlow.handleCallbackQuery(query);
   });
 
   // Messages (documents/text)
   bot.on('message', async (msg) => {
-    // /start sudah ditangani di atas
     if (msg.text && /^\/start$/.test(msg.text)) return;
-
-    // Delegasikan ke flow aktif. Tambahkan flow lain di sini jika ada.
     await txtToVcfFlow.handleMessage(msg);
+    await vcfToTxtFlow.handleMessage(msg);
   });
 
   console.log('Bot is running with index.js as entry point...');
