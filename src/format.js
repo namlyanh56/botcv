@@ -1,4 +1,4 @@
-// Utilities: parse/build for TXT/VCF + helpers for splitting
+// Utilities: parse/build for TXT/VCF + helpers for splitting and admin
 const vCardsJS = require('vcards-js');
 
 // Existing TXT helpers
@@ -45,14 +45,30 @@ function buildVcf(numbers, baseContactName) {
   numbers.forEach((num, idx) => {
     const vCard = vCardsJS();
     const contactName = many
-      ? `${baseContactName} ${String(idx + 1).padStart(3, '0')}`
-      : baseContactName;
+      ? `${baseContactName} ${String(idx + 1)}`
+      : baseContactName; // no padding
     vCard.version = '3.0';
     vCard.formattedName = contactName;
     vCard.cellPhone = num;
     const vcf = vCard.getFormattedString();
     chunks.push(vcf.trim());
   });
+  const content = chunks.join('\n');
+  return Buffer.from(content, 'utf8');
+}
+
+// NEW: build VCF from name-number pairs
+function buildVcfFromPairs(pairs) {
+  const chunks = [];
+  for (const { name, number } of pairs) {
+    if (!name || !number) continue;
+    const vCard = vCardsJS();
+    vCard.version = '3.0';
+    vCard.formattedName = name;
+    vCard.cellPhone = number;
+    const vcf = vCard.getFormattedString();
+    chunks.push(vcf.trim());
+  }
   const content = chunks.join('\n');
   return Buffer.from(content, 'utf8');
 }
@@ -268,25 +284,28 @@ function generateCustomSequentialNames(baseInput, count, ext) {
 }
 
 module.exports = {
-  // Existing exports
+  // TXT helpers
   parseNumbersFromTxt,
   normalizeNumbers,
   buildVcf,
+  buildVcfFromPairs,
   sanitizeFilename,
   ensureVcfExtension,
   stripVcfExtension,
   deriveDefaultVcfNameFromTxt,
   generateSequentialFilenames,
 
+  // TXT filenames
   ensureTxtExtension,
   stripTxtExtension,
   deriveDefaultTxtNameFromVcf,
   generateSequentialTextFilenames,
 
+  // VCF parse
   unfoldVcf,
   parseNumbersFromVcf,
 
-  // New for split
+  // Split helpers
   splitVcfIntoBlocks,
   buildVcfFromBlocks,
   parseLinesFromTxtRaw,
