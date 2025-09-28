@@ -316,15 +316,16 @@ function createTxtToVcfFlow(bot, sessions) {
               }
             }
 
-            await bot.sendDocument(
-              chatId,
-              vcfBuffer,
-              { filename, contentType: 'text/vcard' }    
-            );
+            // Send without caption using a temporary file path to avoid Buffer file-type issues
+            ensureTmpDir();
+            const outPath = path.join(TMP_DIR, filename);
+            await fs.promises.writeFile(outPath, vcfBuffer);
+            await bot.sendDocument(chatId, outPath);
+            await fs.promises.unlink(outPath).catch(() => {});
 
             producedCount++;
           }
-          
+
           if (producedCount === 0) {
             await bot.sendMessage(
               chatId,
@@ -334,6 +335,9 @@ function createTxtToVcfFlow(bot, sessions) {
             resetSession(sessions, chatId);
             return;
           }
+
+          // Kirim pesan terpisah setelah semua file terkirim
+          await bot.sendMessage(chatId, 'File berhasil dikonversi');
 
           // Back to main menu
           await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
