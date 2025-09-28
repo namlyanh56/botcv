@@ -238,8 +238,6 @@ function createSplitFlow(bot, sessions) {
         s.sourceFileName = doc.file_name || 'input.txt';
         s.fileExt = getLowerExt(s.sourceFileName) || '.txt';
         s.rawContent = content;
-
-        // Tetap lock agar tidak bisa kirim file kedua
         s.state = STATES.WAITING_FILENAME_CHOICE;
 
         return bot.sendMessage(
@@ -367,9 +365,8 @@ function createSplitFlow(bot, sessions) {
         await fs.promises.unlink(outPath).catch(() => {});
       }
 
-      // Pesan akhir khusus split
       await bot.sendMessage(chatId, 'File berhasil dipecah');
-      await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
+      await bot.sendMessage(chatId, 'Selesai.');
     } catch (err) {
       console.error('splitFlow processing error:', err);
       await bot.sendMessage(
