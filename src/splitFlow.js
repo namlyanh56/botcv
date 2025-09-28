@@ -1,6 +1,14 @@
 // Flow state machine for 📂Pecah File📂
 const fs = require('fs');
 const path = require('path');
+
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getCancelMenu,
@@ -358,15 +366,27 @@ function createSplitFlow(bot, sessions) {
       // Jika hanya 1 hasil, pastikan tanpa penomoran (fungsi di atas sudah meng-handle)
       ensureTmpDir();
       for (let i = 0; i < chunks.length; i++) {
+        if (stop.shouldStop && stop.shouldStop(chatId)) {
+          await bot.sendMessage(chatId, 'Dihentikan.');
+          break;
+        }
+
         const buf = buildBufferFromUnits(chunks[i]);
         const outPath = path.join(TMP_DIR, filenames[i] || `part_${i + 1}${s.fileExt}`);
         await fs.promises.writeFile(outPath, buf);
+
+        if (stop.shouldStop && stop.shouldStop(chatId)) {
+          await fs.promises.unlink(outPath).catch(() => {});
+          await bot.sendMessage(chatId, 'Dihentikan.');
+          break;
+        }
+
         await bot.sendDocument(chatId, outPath);
         await fs.promises.unlink(outPath).catch(() => {});
       }
 
       await bot.sendMessage(chatId, 'File berhasil dipecah');
-      await bot.sendMessage(chatId, 'Selesai.');
+      // HAPUS pengiriman "Selesai."
     } catch (err) {
       console.error('splitFlow processing error:', err);
       await bot.sendMessage(
