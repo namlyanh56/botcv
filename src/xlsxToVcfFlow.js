@@ -3,6 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getCancelMenu,
@@ -309,6 +316,11 @@ function createXlsxToVcfFlow(bot, sessions) {
           let producedCount = 0;
 
           for (let i = 0; i < filesToProcess.length; i++) {
+            if (stop.shouldStop && stop.shouldStop(chatId)) {
+              await bot.sendMessage(chatId, 'Dihentikan.');
+              break;
+            }
+
             const f = filesToProcess[i];
 
             // Di Excel kita sudah normalisasi dan tidak dedup, mempertahankan urutan
@@ -322,6 +334,13 @@ function createXlsxToVcfFlow(bot, sessions) {
             ensureTmpDir();
             const outPath = path.join(TMP_DIR, filename);
             await fs.promises.writeFile(outPath, vcfBuffer);
+
+            if (stop.shouldStop && stop.shouldStop(chatId)) {
+              await fs.promises.unlink(outPath).catch(() => {});
+              await bot.sendMessage(chatId, 'Dihentikan.');
+              break;
+            }
+
             await bot.sendDocument(chatId, outPath);
             await fs.promises.unlink(outPath).catch(() => {});
 
@@ -339,8 +358,7 @@ function createXlsxToVcfFlow(bot, sessions) {
           }
 
           await bot.sendMessage(chatId, 'File berhasil dikonversi');
-          // Hapus kembali otomatis ke menu utama
-          await bot.sendMessage(chatId, 'Selesai.');
+          // HAPUS pengiriman "Selesai."
         } catch (err) {
           console.error('XLSX processing error:', err);
           await bot.sendMessage(
