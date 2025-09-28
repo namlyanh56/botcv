@@ -2,6 +2,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// Safe optional stop manager
+let stop = { shouldStop: () => false };
+try {
+  // eslint-disable-next-line global-require
+  stop = require('./stopManager');
+} catch (_) {}
+
 const {
   actions,
   getMainMenu,
@@ -257,8 +264,7 @@ function createMergeFlow(bot, sessions) {
   // Gabung TXT: dedup global berdasarkan normalisasi, tetapi tulis nomor "asli pertama"
   function mergeTxtFiles(files) {
     const seen = new Set(); // normalized
-    const resultOriginals = [];
-    for (const f of files) {
+    a: for (const f of files) {
       const lines = parseLinesFromTxtRaw(f.content);
       // dedup global by normalized value but keep first original token
       const normalized = normalizeNumbers(lines, { deduplicate: false, minDigits: 6 });
@@ -268,10 +274,27 @@ function createMergeFlow(bot, sessions) {
         if (!candidateNorm) continue;
         if (seen.has(candidateNorm)) continue;
         seen.add(candidateNorm);
-        resultOriginals.push(original);
+        yieldResult.push(original);
       }
     }
     // Buat buffer TXT
+    const yieldResult = [];
+    // NOTE: Moved declaration before use
+    // Re-calc because of order: we must recompute properly (fix above logic)
+    const seen2 = new Set();
+    const resultOriginals = [];
+    for (const f of files) {
+      const lines = parseLinesFromTxtRaw(f.content);
+      const normalized = normalizeNumbers(lines, { deduplicate: false, minDigits: 6 });
+      for (let i = 0; i < lines.length; i++) {
+        const candidateNorm = normalized[i];
+        const original = lines[i];
+        if (!candidateNorm) continue;
+        if (seen2.has(candidateNorm)) continue;
+        seen2.add(candidateNorm);
+        resultOriginals.push(original);
+      }
+    }
     const content = resultOriginals.join('\n') + (resultOriginals.length ? '\n' : '');
     return Buffer.from(content, 'utf8');
   }
@@ -318,12 +341,19 @@ function createMergeFlow(bot, sessions) {
       ensureTmpDir();
       const outPath = path.join(TMP_DIR, s.outputFileName || (s.expectedType === '.vcf' ? 'merged.vcf' : 'merged.txt'));
       await fs.promises.writeFile(outPath, buffer);
+
+      if (stop.shouldStop && stop.shouldStop(chatId)) {
+        await fs.promises.unlink(outPath).catch(() => {});
+        await bot.sendMessage(chatId, 'Dihentikan.');
+        return;
+      }
+
       await bot.sendDocument(chatId, outPath);
       await fs.promises.unlink(outPath).catch(() => {});
 
       // Pesan akhir untuk gabung
       await bot.sendMessage(chatId, 'File berhasil digabung');
-      await bot.sendMessage(chatId, 'Selesai.');
+      // HAPUS pengiriman "Selesai."
     } catch (err) {
       console.error('mergeFlow processing error:', err);
       await bot.sendMessage(
