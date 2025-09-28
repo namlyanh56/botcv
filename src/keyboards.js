@@ -3,8 +3,11 @@ const actions = {
   START_VCF_TO_TXT: 'action:vcf_to_txt:start',
   START_SPLIT_FILE: 'action:split_file:start',
   START_ADMIN_FROM_MESSAGE: 'action:admin_from_message:start',
+  START_MERGE_FILES: 'action:merge_files:start',
 
-  // Reuse filename choices for other flows (not used in Admin flow)
+  MERGE_DONE: 'action:merge_files:done',
+
+  // Reuse filename choices for other flows
   FILENAME_CUSTOM: 'action:txt_to_vcf:filename_custom',
   FILENAME_DEFAULT: 'action:txt_to_vcf:filename_default',
 
@@ -23,6 +26,7 @@ function getMainMenu() {
         [{ text: '📗VCF to TXT📗', callback_data: actions.START_VCF_TO_TXT }],
         [{ text: '📂Pecah File📂', callback_data: actions.START_SPLIT_FILE }],
         [{ text: '👤CV Admin👤', callback_data: actions.START_ADMIN_FROM_MESSAGE }],
+        [{ text: '🗃️Gabung File🗃️', callback_data: actions.START_MERGE_FILES }],
       ],
     },
   };
@@ -64,10 +68,23 @@ function getSplitModeMenu() {
   };
 }
 
+// Inline keyboard khusus pengumpulan file untuk fitur Gabung File
+function getMergeCollectMenu() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '✅ Selesai', callback_data: actions.MERGE_DONE }],
+        [{ text: '✖️ Batal', callback_data: actions.CANCEL }],
+      ],
+    },
+  };
+}
+
 module.exports = {
   actions,
   getMainMenu,
   getCancelMenu,
   getFilenameChoiceMenu,
   getSplitModeMenu,
+  getMergeCollectMenu,
 };
