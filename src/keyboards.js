@@ -1,4 +1,3 @@
-\// Minimal inline keyboard builders
 
 const actions = {
   START_TXT_TO_VCF: 'action:txt_to_vcf:start',
