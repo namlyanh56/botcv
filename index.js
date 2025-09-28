@@ -8,6 +8,8 @@ const { createSplitFlow } = require('./src/splitFlow');
 const { createAdminFromMessageFlow } = require('./src/adminFromMessageFlow');
 const { createMergeFlow } = require('./src/mergeFlow');
 const { createXlsxToVcfFlow } = require('./src/xlsxToVcfFlow');
+const { createRenameFlow } = require('./src/renameFlow');
+const stop = require('./src/stopManager');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -26,6 +28,7 @@ async function main() {
   const sessionsAdmin = new Map();
   const sessionsMerge = new Map();
   const sessionsXlsx = new Map();
+  const sessionsRename = new Map();
 
   const txtToVcfFlow = createTxtToVcfFlow(bot, sessionsTxtToVcf);
   const vcfToTxtFlow = createVcfToTxtFlow(bot, sessionsVcfToTxt);
@@ -33,6 +36,7 @@ async function main() {
   const adminFlow = createAdminFromMessageFlow(bot, sessionsAdmin);
   const mergeFlow = createMergeFlow(bot, sessionsMerge);
   const xlsxFlow = createXlsxToVcfFlow(bot, sessionsXlsx);
+  const renameFlow = createRenameFlow(bot, sessionsRename);
 
   // /start hanya untuk memunculkan Reply Keyboard utama (tanpa inline pesan menu)
   bot.onText(/^\/start$/, async (msg) => {
@@ -51,7 +55,28 @@ async function main() {
     await adminFlow.handleCallbackQuery(query);
     await mergeFlow.handleCallbackQuery(query);
     await xlsxFlow.handleCallbackQuery(query);
+    await renameFlow.handleCallbackQuery(query);
   });
+
+  // Hentikan semua proses aman
+  async function stopAll(chatId) {
+    // Set bendera stop agar loop pengiriman berhenti di titik aman
+    stop.requestStop(chatId);
+    // Reset semua sesi flow untuk chat ini
+    sessionsTxtToVcf.delete(chatId);
+    sessionsVcfToTxt.delete(chatId);
+    sessionsSplit.delete(chatId);
+    sessionsAdmin.delete(chatId);
+    sessionsMerge.delete(chatId);
+    sessionsXlsx.delete(chatId);
+    sessionsRename.delete(chatId);
+
+    try {
+      await bot.sendMessage(chatId, 'Semua proses dihentikan.');
+    } catch (_) {}
+    // Bersihkan bendera setelah notifikasi
+    stop.clearStop(chatId);
+  }
 
   // Router tombol Reply Keyboard (MENU UTAMA)
   async function routeMainMenuByText(msg) {
@@ -82,6 +107,14 @@ async function main() {
       await mergeFlow.handleStart(msg.chat.id);
       return true;
     }
+    if (t === menuLabels.RENAME) {
+      await renameFlow.handleStart(msg.chat.id);
+      return true;
+    }
+    if (t === menuLabels.STOP) {
+      await stopAll(msg.chat.id);
+      return true;
+    }
     return false;
   }
 
@@ -100,6 +133,7 @@ async function main() {
     await adminFlow.handleMessage(msg);
     await mergeFlow.handleMessage(msg);
     await xlsxFlow.handleMessage(msg);
+    await renameFlow.handleMessage(msg);
   });
 
   console.log('Bot is running with index.js as entry point...');
