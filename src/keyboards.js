@@ -5,6 +5,11 @@ const actions = {
   START_ADMIN_FROM_MESSAGE: 'action:admin_from_message:start',
   START_MERGE_FILES: 'action:merge_files:start',
   START_XLSX_TO_VCF: 'action:xlsx_to_vcf:start',
+  START_RENAME: 'action:rename:start',
+
+  // Rename mode
+  RENAME_MODE_FILE: 'action:rename:mode_file',
+  RENAME_MODE_CTC: 'action:rename:mode_ctc',
 
   MERGE_DONE: 'action:merge_files:done',
 
@@ -27,6 +32,8 @@ const menuLabels = {
   ADMIN_FROM_MSG: '👤 CV Admin 👤',
   SPLIT_FILE: '✂️ Pecah File ✂️',
   MERGE_FILES: '🔗 Gabung File 🔗',
+  RENAME: '⚡ Rename ⚡',
+  STOP: '⛔ Stop ⛔',
 };
 
 // MENU UTAMA: Reply Keyboard (persisten di bawah kolom chat)
@@ -39,6 +46,8 @@ function getMainMenu() {
         [{ text: menuLabels.VCF_TO_TXT }, { text: menuLabels.ADMIN_FROM_MSG }],
         // Pecah dan Gabung bersandingan
         [{ text: menuLabels.SPLIT_FILE }, { text: menuLabels.MERGE_FILES }],
+        // Tambahan
+        [{ text: menuLabels.RENAME }, { text: menuLabels.STOP }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
@@ -96,6 +105,21 @@ function getMergeCollectMenu() {
   };
 }
 
+// Inline keyboard untuk memilih mode rename
+function getRenameModeMenu() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: 'Rename File📂', callback_data: actions.RENAME_MODE_FILE },
+          { text: 'Rename CTC👤', callback_data: actions.RENAME_MODE_CTC },
+        ],
+        [{ text: 'Batal', callback_data: actions.CANCEL }],
+      ],
+    },
+  };
+}
+
 module.exports = {
   actions,
   menuLabels,
@@ -104,4 +128,5 @@ module.exports = {
   getFilenameChoiceMenu,
   getSplitModeMenu,
   getMergeCollectMenu,
+  getRenameModeMenu,
 };
