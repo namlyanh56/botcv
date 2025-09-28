@@ -99,10 +99,49 @@ function ensureVcfExtension(name) {
   return n;
 }
 
+function stripVcfExtension(name) {
+  if (!name) return '';
+  return String(name).replace(/\.vcf$/i, '');
+}
+
 function deriveDefaultVcfNameFromTxt(txtName) {
   if (!txtName) return 'contacts.vcf';
   const base = txtName.replace(/\.txt$/i, '');
   return ensureVcfExtension(sanitizeFilename(base));
+}
+
+/**
+ * Generate sequential filenames for multiple files based on a base input.
+ * Rules:
+ * - If count === 1: return [base.vcf] (no numbering).
+ * - If base ends with digits (e.g., "DF10"): produce ["DF10.vcf", "DF11.vcf", ...]
+ * - Otherwise: produce ["base 1.vcf", "base 2.vcf", ...]
+ */
+function generateSequentialFilenames(baseInput, count) {
+  const base = sanitizeFilename(stripVcfExtension(baseInput || 'contacts'));
+  const results = [];
+
+  if (count <= 1) {
+    results.push(ensureVcfExtension(base));
+    return results;
+  }
+
+  const m = base.match(/(\d+)$/);
+  if (m) {
+    const digits = m[1];
+    const prefix = base.slice(0, -digits.length); // keep any spaces as typed
+    let start = parseInt(digits, 10);
+    for (let i = 0; i < count; i++) {
+      const name = `${prefix}${start + i}`;
+      results.push(ensureVcfExtension(sanitizeFilename(name)));
+    }
+  } else {
+    for (let i = 0; i < count; i++) {
+      const name = `${base} ${i + 1}`;
+      results.push(ensureVcfExtension(sanitizeFilename(name)));
+    }
+  }
+  return results;
 }
 
 module.exports = {
@@ -112,4 +151,6 @@ module.exports = {
   sanitizeFilename,
   ensureVcfExtension,
   deriveDefaultVcfNameFromTxt,
+  stripVcfExtension,
+  generateSequentialFilenames,
 };
