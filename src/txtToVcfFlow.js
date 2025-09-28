@@ -319,13 +319,13 @@ function createTxtToVcfFlow(bot, sessions) {
             await bot.sendDocument(
               chatId,
               vcfBuffer,
-              { caption: 'File berhasil dikonversi' },
               { filename, contentType: 'text/vcard' }
+              await bot.sendMessage(chatId, 'File berhasil dikonversi');
             );
 
             producedCount++;
           }
-
+          
           if (producedCount === 0) {
             await bot.sendMessage(
               chatId,
