@@ -5,6 +5,7 @@ const { getMainMenu } = require('./src/keyboards');
 const { createTxtToVcfFlow } = require('./src/txtToVcfFlow');
 const { createVcfToTxtFlow } = require('./src/vcfToTxtFlow');
 const { createSplitFlow } = require('./src/splitFlow');
+const { createAdminFromMessageFlow } = require('./src/adminFromMessageFlow');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -20,10 +21,12 @@ async function main() {
   const sessionsTxtToVcf = new Map();
   const sessionsVcfToTxt = new Map();
   const sessionsSplit = new Map();
+  const sessionsAdmin = new Map();
 
   const txtToVcfFlow = createTxtToVcfFlow(bot, sessionsTxtToVcf);
   const vcfToTxtFlow = createVcfToTxtFlow(bot, sessionsVcfToTxt);
   const splitFlow = createSplitFlow(bot, sessionsSplit);
+  const adminFlow = createAdminFromMessageFlow(bot, sessionsAdmin);
 
   bot.onText(/^\/start$/, async (msg) => {
     await bot.sendMessage(
@@ -37,6 +40,7 @@ async function main() {
     await txtToVcfFlow.handleCallbackQuery(query);
     await vcfToTxtFlow.handleCallbackQuery(query);
     await splitFlow.handleCallbackQuery(query);
+    await adminFlow.handleCallbackQuery(query);
   });
 
   bot.on('message', async (msg) => {
@@ -44,6 +48,7 @@ async function main() {
     await txtToVcfFlow.handleMessage(msg);
     await vcfToTxtFlow.handleMessage(msg);
     await splitFlow.handleMessage(msg);
+    await adminFlow.handleMessage(msg);
   });
 
   console.log('Bot is running with index.js as entry point...');
