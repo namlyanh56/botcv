@@ -339,7 +339,8 @@ function createXlsxToVcfFlow(bot, sessions) {
           }
 
           await bot.sendMessage(chatId, 'File berhasil dikonversi');
-          await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
+          // Hapus kembali otomatis ke menu utama
+          await bot.sendMessage(chatId, 'Selesai.');
         } catch (err) {
           console.error('XLSX processing error:', err);
           await bot.sendMessage(
