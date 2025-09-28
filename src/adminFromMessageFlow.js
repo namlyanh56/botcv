@@ -235,7 +235,7 @@ function createAdminFromMessageFlow(bot, sessions) {
       const pairs = [];
       for (const cat of s.categories) {
         const nums = cat.numbers || [];
-        the baseName = cat.name;
+        const baseName = cat.name; // FIX: typo 'the baseName' -> 'const baseName'
         if (nums.length === 1) {
           pairs.push({ name: baseName, number: nums[0] });
         } else {
@@ -260,7 +260,7 @@ function createAdminFromMessageFlow(bot, sessions) {
       await fs.promises.unlink(outPath).catch(() => {});
 
       await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      // Hapus kembali otomatis ke menu utama
+      // Tidak kembali otomatis ke menu utama, sesuai tujuan sebelumnya
       await bot.sendMessage(chatId, 'Selesai.');
     } catch (err) {
       console.error('adminFromMessage processing error:', err);
