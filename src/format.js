@@ -98,6 +98,12 @@ function deriveDefaultVcfNameFromTxt(txtName) {
   return ensureVcfExtension(sanitizeFilename(base));
 }
 
+function deriveDefaultVcfNameFromXlsx(xlsxName) {
+  if (!xlsxName) return 'contacts.vcf';
+  const base = xlsxName.replace(/\.(xlsx|xls)$/i, '');
+  return ensureVcfExtension(sanitizeFilename(base));
+}
+
 function generateSequentialFilenames(baseInput, count) {
   const base = sanitizeFilename(stripVcfExtension(baseInput || 'contacts'));
   const results = [];
@@ -293,6 +299,7 @@ module.exports = {
   ensureVcfExtension,
   stripVcfExtension,
   deriveDefaultVcfNameFromTxt,
+  deriveDefaultVcfNameFromXlsx,
   generateSequentialFilenames,
 
   // TXT filenames
