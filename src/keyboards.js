@@ -21,12 +21,12 @@ const actions = {
 
 // Label untuk Reply Keyboard Menu Utama (agar konsisten di index.js)
 const menuLabels = {
-  TXT_TO_VCF: '📒TXT to VCF📒',
-  XLSX_TO_VCF: '🧩XLSX to VCF🧩',
-  VCF_TO_TXT: '📗VCF to TXT📗',
-  ADMIN_FROM_MSG: '👤CV Admin👤',
-  SPLIT_FILE: '📂Pecah File📂',
-  MERGE_FILES: '🗃️Gabung File🗃️',
+  TXT_TO_VCF: '💎 TXT to VCF 💎',
+  XLSX_TO_VCF: '🧩 XLSX to VCF 🧩',
+  VCF_TO_TXT: '📮 VCF to TXT 📮',
+  ADMIN_FROM_MSG: '👤 CV Admin 👤',
+  SPLIT_FILE: '✂️ Pecah File ✂️',
+  MERGE_FILES: '🔗 Gabung File 🔗',
 };
 
 // MENU UTAMA: Reply Keyboard (persisten di bawah kolom chat)
