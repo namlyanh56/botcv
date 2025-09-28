@@ -319,7 +319,6 @@ function createTxtToVcfFlow(bot, sessions) {
             await bot.sendDocument(
               chatId,
               vcfBuffer,
-              {},
               { filename, contentType: 'text/vcard' }    
             );
 
@@ -335,9 +334,6 @@ function createTxtToVcfFlow(bot, sessions) {
             resetSession(sessions, chatId);
             return;
           }
-
-          await bot.sendMessage(chatId, 'File berhasil dikonversi');
-        }
 
           // Back to main menu
           await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
