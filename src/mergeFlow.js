@@ -323,7 +323,7 @@ function createMergeFlow(bot, sessions) {
 
       // Pesan akhir untuk gabung
       await bot.sendMessage(chatId, 'File berhasil digabung');
-      await bot.sendMessage(chatId, 'Selesai. Kembali ke Menu Awal.', getMainMenu());
+      await bot.sendMessage(chatId, 'Selesai.');
     } catch (err) {
       console.error('mergeFlow processing error:', err);
       await bot.sendMessage(
