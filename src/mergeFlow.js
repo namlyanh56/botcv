@@ -58,7 +58,7 @@ function isVcfDocument(doc) {
 function statusText(count) {
   if (!count) {
     return (
-'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT<b> 📚
+'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT</b> 📚
 
 ⚠️ Belum ada file yang diunggah.
 
@@ -68,7 +68,7 @@ function statusText(count) {
     );
   }
   return (
-'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT<b> 📚
+'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT</b> 📚
 
 ✔️ Total file diunggah: ${count}
 
