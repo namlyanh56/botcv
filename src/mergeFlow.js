@@ -58,23 +58,23 @@ function isVcfDocument(doc) {
 function statusText(count) {
   if (!count) {
     return (
-'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT</b> 📚
+`📁 *FORMAT UPLOAD FILE*
 
-⚠️ Belum ada file yang diunggah.
+⚠️ Tidak ada file yang diunggah.
 
-───────────────────
+=====================
 
-🔔 klik tombol 'Selesai' setelah mengunggah semua file.'
+📌 klik tombol '*Selesai*' setelah mengunggah semua file.`
     );
   }
   return (
-'📚 <b>UPLOAD SEMUA FILE DALAM SATU FORMAT</b> 📚
+`📁 *FORMAT UPLOAD FILE*
 
-✔️ Total file diunggah: ${count}
+✔️ Total file diunggah: *${count}*
 
-───────────────────
+=====================
 
-🔔 klik tombol 'Selesai' setelah mengunggah semua file.'
+📌 klik tombol '*Selesai*' setelah mengunggah semua file.`
   );
 }
 
@@ -109,19 +109,17 @@ function createMergeFlow(bot, sessions) {
     s.uploadStatusMsgId = null;
     s.outputFileName = '';
 
-    const sent = await bot.sendMessage(chatId, statusText(0), getMergeCollectMenu());
+    const sent = await bot.sendMessage(
+      chatId,
+      statusText(0),
+      { ...getMergeCollectMenu(), parse_mode: 'Markdown' }
+    );
     s.uploadStatusMsgId = sent.message_id;
   }
 
   async function handleCancel(chatId) {
     resetSession(sessions, chatId);
-    await bot.sendMessage(chatId, `╭─❖ *SELAMAT DATANG* ❖─╮
-📑 Convert All File ➝ VCF
-🔹 Pilih menu untuk mulai
-
-📢 Ads : @PanoramaaStoree
-👑 Owner : @Jaehype
-╰───────────────────╯`, getMainMenu());
+    await bot.sendMessage(chatId, 'Dibatalkan. Kembali ke Menu Awal.', getMainMenu());
   }
 
   async function handleCallbackQuery(query) {
@@ -152,6 +150,7 @@ function createMergeFlow(bot, sessions) {
               chat_id: chatId,
               message_id: s.uploadStatusMsgId,
               reply_markup: getMergeCollectMenu().reply_markup,
+              parse_mode: 'Markdown',
             });
           } catch (_) {}
           return;
@@ -234,6 +233,7 @@ function createMergeFlow(bot, sessions) {
             chat_id: chatId,
             message_id: s.uploadStatusMsgId,
             reply_markup: getMergeCollectMenu().reply_markup,
+            parse_mode: 'Markdown',
           });
         } catch (_) {}
 
@@ -270,6 +270,7 @@ function createMergeFlow(bot, sessions) {
     const resultOriginals = [];
     for (const f of files) {
       const lines = parseLinesFromTxtRaw(f.content);
+      // dedup global by normalized value but keep first original token
       const normalized = normalizeNumbers(lines, { deduplicate: false, minDigits: 6 });
       for (let i = 0; i < lines.length; i++) {
         const candidateNorm = normalized[i];
@@ -280,6 +281,7 @@ function createMergeFlow(bot, sessions) {
         resultOriginals.push(original);
       }
     }
+    // Buat buffer TXT
     const content = resultOriginals.join('\n') + (resultOriginals.length ? '\n' : '');
     return Buffer.from(content, 'utf8');
   }
@@ -293,8 +295,17 @@ function createMergeFlow(bot, sessions) {
       for (const b of blocks) {
         const numbers = normalizeNumbers(parseNumbersFromVcf(b), { deduplicate: true, minDigits: 6 });
         if (numbers.length === 0) continue;
-        if (numbers.some(n => seenNumbers.has(n))) continue;
-        numbers.forEach(n => seenNumbers.add(n));
+        // Jika salah satu nomor di blok sudah pernah ada, lewati blok
+        let duplicateFound = false;
+        for (const n of numbers) {
+          if (seenNumbers.has(n)) {
+            duplicateFound = true;
+            break;
+          }
+        }
+        if (duplicateFound) continue;
+        // Tandai semua nomor blok sebagai terlihat, simpan blok apa adanya
+        for (const n of numbers) seenNumbers.add(n);
         keptBlocks.push(b);
       }
     }
@@ -331,6 +342,7 @@ function createMergeFlow(bot, sessions) {
       await bot.sendDocument(chatId, outPath);
       await fs.promises.unlink(outPath).catch(() => {});
 
+      // Pesan akhir untuk gabung (tidak kirim "Selesai.")
       if (!aborted) {
         await bot.sendMessage(chatId, 'File berhasil digabung');
       }
