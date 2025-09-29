@@ -60,8 +60,9 @@ async function main() {
 
   // Hentikan semua proses aman
   async function stopAll(chatId) {
-    // Set bendera stop agar loop pengiriman berhenti di titik aman
+    // Set bendera stop agar loop pengiriman berhenti di titik aman (bump cancel token)
     stop.requestStop(chatId);
+
     // Reset semua sesi flow untuk chat ini
     sessionsTxtToVcf.delete(chatId);
     sessionsVcfToTxt.delete(chatId);
@@ -74,8 +75,11 @@ async function main() {
     try {
       await bot.sendMessage(chatId, 'Semua proses dihentikan.');
     } catch (_) {}
-    // Bersihkan bendera setelah notifikasi
-    stop.clearStop(chatId);
+
+    // PENTING: Jangan clearStop di sini. Biarkan cancel token tetap meningkat
+    // agar proses yang sedang berjalan mendeteksi perubahan token dan berhenti sendiri.
+    // Flag legacy bisa dibersihkan saat user memulai flow baru bila diperlukan.
+    // stop.clearStop(chatId); // dihapus
   }
 
   // Router tombol Reply Keyboard (MENU UTAMA)
