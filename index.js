@@ -96,13 +96,19 @@ async function main() {
     if (!recordAndGuard(msg)) {
       await bot.sendMessage(
         msg.chat.id,
-        'Akses ditolak. Hubungi admin untuk mendapatkan izin.'
+        '*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.'
       );
       return;
     }
     await bot.sendMessage(
       msg.chat.id,
-      'Pilih fitur melalui keyboard di bawah.',
+      '╭─❖ *SELAMAT DATANG* ❖─╮
+📑 Convert All File ➝ VCF
+🔹 Pilih menu untuk mulai
+
+📢 Ads : @PanoramaaStoree
+👑 Owner : @Jaehype
+╰───────────────────╯',
       getMainMenu()
     );
   });
