@@ -3,11 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Safe optional stop manager
-let stop = { shouldStop: () => false };
-try {
-  // eslint-disable-next-line global-require
-  stop = require('./stopManager');
-} catch (_) {}
+let stop = { shouldStop: () => false, snapshot: () => 0, shouldAbort: () => false };
+try { stop = require('./stopManager'); } catch (_) {}
 
 const {
   actions,
@@ -125,7 +122,6 @@ function createSplitFlow(bot, sessions) {
       const s = getSession(sessions, chatId);
       await bot.answerCallbackQuery(query.id);
 
-      // Hanya flow aktif yang merespon CANCEL (agar tidak spam)
       if (data === actions.CANCEL) {
         if (s.state !== STATES.IDLE) {
           return handleCancel(chatId);
@@ -142,7 +138,6 @@ function createSplitFlow(bot, sessions) {
           s.mode = data === actions.SPLIT_MODE_CONTACTS ? 'contacts' : 'files';
           s.state = STATES.WAITING_FILE_UPLOAD;
 
-          // Hilangkan keyboard mode
           try {
             await bot.editMessageReplyMarkup(
               { inline_keyboard: [] },
@@ -150,7 +145,6 @@ function createSplitFlow(bot, sessions) {
             );
           } catch (_) {}
 
-          // Hapus pesan "Pilih mode pemecahan:" agar chatnya ikut hilang
           try {
             await bot.deleteMessage(chatId, s.lastPromptMsgId);
           } catch (_) {}
@@ -336,7 +330,6 @@ function createSplitFlow(bot, sessions) {
         chunks = splitArrayIntoNParts(units, s.numberParam);
       }
 
-      // Filter chunk kosong (jaga-jaga)
       chunks = chunks.filter((c) => c && c.length > 0);
       if (!chunks.length) {
         await bot.sendMessage(
@@ -363,10 +356,13 @@ function createSplitFlow(bot, sessions) {
         );
       }
 
-      // Jika hanya 1 hasil, pastikan tanpa penomoran (fungsi di atas sudah meng-handle)
+      const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+      let aborted = false;
+
       ensureTmpDir();
       for (let i = 0; i < chunks.length; i++) {
-        if (stop.shouldStop && stop.shouldStop(chatId)) {
+        if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+          aborted = true;
           await bot.sendMessage(chatId, 'Dihentikan.');
           break;
         }
@@ -375,7 +371,8 @@ function createSplitFlow(bot, sessions) {
         const outPath = path.join(TMP_DIR, filenames[i] || `part_${i + 1}${s.fileExt}`);
         await fs.promises.writeFile(outPath, buf);
 
-        if (stop.shouldStop && stop.shouldStop(chatId)) {
+        if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+          aborted = true;
           await fs.promises.unlink(outPath).catch(() => {});
           await bot.sendMessage(chatId, 'Dihentikan.');
           break;
@@ -385,8 +382,9 @@ function createSplitFlow(bot, sessions) {
         await fs.promises.unlink(outPath).catch(() => {});
       }
 
-      await bot.sendMessage(chatId, 'File berhasil dipecah');
-      // HAPUS pengiriman "Selesai."
+      if (!aborted) {
+        await bot.sendMessage(chatId, 'File berhasil dipecah');
+      }
     } catch (err) {
       console.error('splitFlow processing error:', err);
       await bot.sendMessage(
