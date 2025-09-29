@@ -4,11 +4,8 @@ const path = require('path');
 const XLSX = require('xlsx');
 
 // Safe optional stop manager
-let stop = { shouldStop: () => false };
-try {
-  // eslint-disable-next-line global-require
-  stop = require('./stopManager');
-} catch (_) {}
+let stop = { shouldStop: () => false, snapshot: () => 0, shouldAbort: () => false };
+try { stop = require('./stopManager'); } catch (_) {}
 
 const {
   actions,
@@ -83,7 +80,6 @@ function humanizeBytes(bytes) {
 }
 
 // Heuristik: deteksi “rumit” bila ditemukan >=2 kolom signifikan (masing2 >=5 nomor valid)
-// di lembar yang sama atau di beberapa lembar secara total.
 function extractNumbersFromWorkbook(filePath) {
   const wb = XLSX.readFile(filePath, { cellDates: false, cellNF: false, cellText: false });
   let best = { sheet: '', col: -1, numbers: [] };
@@ -95,7 +91,6 @@ function extractNumbersFromWorkbook(filePath) {
     if (!ref) continue;
     const range = XLSX.utils.decode_range(ref);
 
-    // Kumpulkan per kolom
     for (let c = range.s.c; c <= range.e.c; c++) {
       const colTokens = [];
       for (let r = range.s.r; r <= range.e.r; r++) {
@@ -103,43 +98,28 @@ function extractNumbersFromWorkbook(filePath) {
         const cell = sh[addr];
         if (!cell) continue;
 
-        // Ambil teks “as is” bila ada, fallback ke v
         let raw = '';
-        if (cell.w != null && cell.w !== '') {
-          raw = String(cell.w).trim();
-        } else if (cell.v != null) {
-          raw = String(cell.v).trim();
-        }
+        if (cell.w != null && cell.w !== '') raw = String(cell.w).trim();
+        else if (cell.v != null) raw = String(cell.v).trim();
         if (!raw) continue;
 
-        // Token kandidat (baris/sel)
         colTokens.push(raw);
       }
 
       if (!colTokens.length) continue;
 
-      // Normalisasi untuk cek validitas; TIDAK dedup agar bisa ukur jumlah “entri”
       const normalized = normalizeNumbers(colTokens, { deduplicate: false, minDigits: 6 });
       const valid = normalized.filter(Boolean);
       if (valid.length >= 5) significantColumns++;
 
-      // Simpan kolom terbaik (terbanyak valid)
       if (valid.length > (best.numbers?.length || 0)) {
         best = { sheet: sheetName, col: c, numbers: valid };
       }
     }
   }
 
-  // Jika kolom signifikan lebih dari satu → rumit
-  if (significantColumns >= 2) {
-    return { complex: true, numbers: [] };
-  }
-
-  // Jika tidak ada angka valid sama sekali
-  if (!best.numbers || best.numbers.length === 0) {
-    return { complex: false, numbers: [] };
-  }
-
+  if (significantColumns >= 2) return { complex: true, numbers: [] };
+  if (!best.numbers || best.numbers.length === 0) return { complex: false, numbers: [] };
   return { complex: false, numbers: best.numbers };
 }
 
@@ -182,7 +162,6 @@ function createXlsxToVcfFlow(bot, sessions) {
     ensureTmpDir();
     const filePath = await bot.downloadFile(doc.file_id, TMP_DIR);
 
-    // Ekstrak nomor
     let result;
     try {
       result = extractNumbersFromWorkbook(filePath);
@@ -219,7 +198,6 @@ function createXlsxToVcfFlow(bot, sessions) {
 
       await bot.answerCallbackQuery(query.id);
 
-      // anti-spam cancel
       if (data === actions.CANCEL) {
         if (session.state !== STATES.IDLE) {
           return handleCancel(chatId);
@@ -305,6 +283,9 @@ function createXlsxToVcfFlow(bot, sessions) {
             return;
           }
 
+          const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+          let aborted = false;
+
           // Tentukan nama file output per file
           let finalFilenames = [];
           if (session.filenameChoice === 'custom' && session.outputBaseName) {
@@ -316,14 +297,13 @@ function createXlsxToVcfFlow(bot, sessions) {
           let producedCount = 0;
 
           for (let i = 0; i < filesToProcess.length; i++) {
-            if (stop.shouldStop && stop.shouldStop(chatId)) {
+            if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+              aborted = true;
               await bot.sendMessage(chatId, 'Dihentikan.');
               break;
             }
 
             const f = filesToProcess[i];
-
-            // Di Excel kita sudah normalisasi dan tidak dedup, mempertahankan urutan
             const numbers = f.numbers;
             if (!numbers || numbers.length === 0) continue;
 
@@ -335,7 +315,8 @@ function createXlsxToVcfFlow(bot, sessions) {
             const outPath = path.join(TMP_DIR, filename);
             await fs.promises.writeFile(outPath, vcfBuffer);
 
-            if (stop.shouldStop && stop.shouldStop(chatId)) {
+            if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+              aborted = true;
               await fs.promises.unlink(outPath).catch(() => {});
               await bot.sendMessage(chatId, 'Dihentikan.');
               break;
@@ -343,11 +324,10 @@ function createXlsxToVcfFlow(bot, sessions) {
 
             await bot.sendDocument(chatId, outPath);
             await fs.promises.unlink(outPath).catch(() => {});
-
             producedCount++;
           }
 
-          if (producedCount === 0) {
+          if (producedCount === 0 && !aborted) {
             await bot.sendMessage(
               chatId,
               'Tidak ditemukan nomor yang valid setelah pembersihan.',
@@ -357,8 +337,9 @@ function createXlsxToVcfFlow(bot, sessions) {
             return;
           }
 
-          await bot.sendMessage(chatId, 'File berhasil dikonversi');
-          // HAPUS pengiriman "Selesai."
+          if (!aborted) {
+            await bot.sendMessage(chatId, 'File berhasil dikonversi');
+          }
         } catch (err) {
           console.error('XLSX processing error:', err);
           await bot.sendMessage(
