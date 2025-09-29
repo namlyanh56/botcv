@@ -2,6 +2,10 @@
 const fs = require('fs');
 const path = require('path');
 
+// Safe optional stop manager (cancel token)
+let stop = { snapshot: () => 0, shouldAbort: () => false, clearStop: () => {} };
+try { stop = require('./stopManager'); } catch (_) {}
+
 const {
   actions,
   getMainMenu,
@@ -111,6 +115,9 @@ function renameVcfContacts(vcfText, baseName) {
 
 function createRenameFlow(bot, sessions) {
   async function handleStart(chatId) {
+    // Bersihkan flag legacy stop saat memulai flow baru (cancel token tetap aman)
+    if (stop.clearStop) stop.clearStop(chatId);
+
     const s = getSession(sessions, chatId);
     s.state = STATES.WAITING_MODE;
     s.mode = '';
@@ -243,13 +250,25 @@ function createRenameFlow(bot, sessions) {
         s.state = STATES.PROCESSING;
 
         try {
+          const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+          let aborted = false;
+
           ensureTmpDir();
           const outPath = path.join(TMP_DIR, s.outputFileName);
           await fs.promises.writeFile(outPath, s.fileBuffer);
-          await bot.sendDocument(chatId, outPath);
-          await fs.promises.unlink(outPath).catch(() => {});
-          await bot.sendMessage(chatId, 'File berhasil di-rename');
-          await bot.sendMessage(chatId, 'Selesai.');
+
+          if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+            aborted = true;
+            await fs.promises.unlink(outPath).catch(() => {});
+            await bot.sendMessage(chatId, 'Dihentikan.');
+          } else {
+            await bot.sendDocument(chatId, outPath);
+            await fs.promises.unlink(outPath).catch(() => {});
+            if (!aborted) {
+              await bot.sendMessage(chatId, 'File berhasil di-rename');
+              // Tidak kirim "Selesai."
+            }
+          }
         } catch (err) {
           console.error('rename file error:', err);
           await bot.sendMessage(chatId, 'Terjadi kesalahan saat rename file.', getMainMenu());
@@ -266,6 +285,9 @@ function createRenameFlow(bot, sessions) {
         s.state = STATES.PROCESSING;
 
         try {
+          const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+          let aborted = false;
+
           const updatedText = renameVcfContacts(s.vcfText, base);
           if (!updatedText) {
             await bot.sendMessage(chatId, 'Tidak ada kontak yang dapat diubah.', getMainMenu());
@@ -274,13 +296,22 @@ function createRenameFlow(bot, sessions) {
           }
 
           ensureTmpDir();
-          // Nama file TETAP sama seperti sumber (syarat)
+          // Nama file TETAP sama seperti sumber
           const outPath = path.join(TMP_DIR, s.sourceFileName || 'contacts.vcf');
           await fs.promises.writeFile(outPath, Buffer.from(updatedText, 'utf8'));
-          await bot.sendDocument(chatId, outPath);
-          await fs.promises.unlink(outPath).catch(() => {});
-          await bot.sendMessage(chatId, 'Kontak berhasil di-rename');
-          await bot.sendMessage(chatId, 'Selesai.');
+
+          if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+            aborted = true;
+            await fs.promises.unlink(outPath).catch(() => {});
+            await bot.sendMessage(chatId, 'Dihentikan.');
+          } else {
+            await bot.sendDocument(chatId, outPath);
+            await fs.promises.unlink(outPath).catch(() => {});
+            if (!aborted) {
+              await bot.sendMessage(chatId, 'Kontak berhasil di-rename');
+              // Tidak kirim "Selesai."
+            }
+          }
         } catch (err) {
           console.error('rename ctc error:', err);
           await bot.sendMessage(chatId, 'Terjadi kesalahan saat rename kontak.', getMainMenu());
