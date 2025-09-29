@@ -3,11 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Safe optional stop manager
-let stop = { shouldStop: () => false };
-try {
-  // eslint-disable-next-line global-require
-  stop = require('./stopManager');
-} catch (_) {}
+let stop = { shouldStop: () => false, snapshot: () => 0, shouldAbort: () => false };
+try { stop = require('./stopManager'); } catch (_) {}
 
 const {
   actions,
@@ -243,6 +240,10 @@ function createVcfToTxtFlow(bot, sessions) {
         return;
       }
 
+      // token + aborted
+      const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+      let aborted = false;
+
       // Prepare filenames according to choice
       let finalFilenames = [];
       if (session.filenameChoice === 'custom' && session.outputBaseName) {
@@ -254,7 +255,8 @@ function createVcfToTxtFlow(bot, sessions) {
       let producedCount = 0;
 
       for (let i = 0; i < filesToProcess.length; i++) {
-        if (stop.shouldStop && stop.shouldStop(chatId)) {
+        if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+          aborted = true;
           await bot.sendMessage(chatId, 'Dihentikan.');
           break;
         }
@@ -273,7 +275,8 @@ function createVcfToTxtFlow(bot, sessions) {
         const outPath = path.join(TMP_DIR, filename);
         await fs.promises.writeFile(outPath, content, 'utf8');
 
-        if (stop.shouldStop && stop.shouldStop(chatId)) {
+        if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+          aborted = true;
           await fs.promises.unlink(outPath).catch(() => {});
           await bot.sendMessage(chatId, 'Dihentikan.');
           break;
@@ -281,11 +284,10 @@ function createVcfToTxtFlow(bot, sessions) {
 
         await bot.sendDocument(chatId, outPath);
         await fs.promises.unlink(outPath).catch(() => {});
-
         producedCount++;
       }
 
-      if (producedCount === 0) {
+      if (producedCount === 0 && !aborted) {
         await bot.sendMessage(
           chatId,
           'Tidak ditemukan nomor yang valid setelah pembersihan.',
@@ -295,8 +297,9 @@ function createVcfToTxtFlow(bot, sessions) {
         return;
       }
 
-      await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      // HAPUS pengiriman "Selesai."
+      if (!aborted) {
+        await bot.sendMessage(chatId, 'File berhasil dikonversi');
+      }
     } catch (err) {
       console.error('vcfToTxt processing error:', err);
       await bot.sendMessage(
