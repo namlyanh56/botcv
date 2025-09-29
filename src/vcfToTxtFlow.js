@@ -99,7 +99,7 @@ function createVcfToTxtFlow(bot, sessions) {
 📢 Ads : @PanoramaaStoree
 👑 Owner : @Jaehype
 ╰───────────────────╯`,
-      getMainMenu()
+      { ...getMainMenu(), parse_mode: 'Markdown' }
     );
   }
 
@@ -155,6 +155,9 @@ function createVcfToTxtFlow(bot, sessions) {
       // Hanya flow aktif yang merespon CANCEL (agar tidak spam)
       if (data === actions.CANCEL) {
         if (session.state !== STATES.IDLE) {
+          // bersihkan inline keyboard dan pesan sebelumnya
+          try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: query.message.message_id }); } catch (_) {}
+          try { await bot.deleteMessage(chatId, query.message.message_id); } catch (_) {}
           return handleCancel(chatId);
         }
         return;
@@ -165,6 +168,9 @@ function createVcfToTxtFlow(bot, sessions) {
       }
 
       if (session.state === STATES.WAITING_FILENAME_CHOICE) {
+        // hilangkan menu dan pesan pertanyaan pilihan nama
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: query.message.message_id }); } catch (_) {}
+        try { await bot.deleteMessage(chatId, query.message.message_id); } catch (_) {}
         if (data === actions.FILENAME_DEFAULT) {
           session.filenameChoice = 'default';
           session.state = STATES.PROCESSING;
