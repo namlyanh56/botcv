@@ -58,23 +58,23 @@ function isVcfDocument(doc) {
 function statusText(count) {
   if (!count) {
     return (
-`📁 FORMAT UPLOAD FILE
+`📚 *UPLOAD SEMUA FILE DALAM SATU FORMAT* 📚
 
-⚠️ Tidak ada file yang diunggah.
+⚠️ Belum ada file yang diunggah.
 
-=====================
+───────────────────
 
-📌 klik tombol 'Selesai' setelah mengunggah semua file.`
+🔔 klik tombol 'Selesai' setelah mengunggah semua file.`
     );
   }
   return (
-`📁 FORMAT UPLOAD FILE
+`📚 *UPLOAD SEMUA FILE DALAM SATU FORMAT* 📚
 
 ✔️ Total file diunggah: ${count}
 
-=====================
+───────────────────
 
-📌 klik tombol 'Selesai' setelah mengunggah semua file.`
+🔔 klik tombol 'Selesai' setelah mengunggah semua file.`
   );
 }
 
@@ -115,7 +115,13 @@ function createMergeFlow(bot, sessions) {
 
   async function handleCancel(chatId) {
     resetSession(sessions, chatId);
-    await bot.sendMessage(chatId, 'Dibatalkan. Kembali ke Menu Awal.', getMainMenu());
+    await bot.sendMessage(chatId, `╭─❖ *SELAMAT DATANG* ❖─╮
+📑 Convert All File ➝ VCF
+🔹 Pilih menu untuk mulai
+
+📢 Ads : @PanoramaaStoree
+👑 Owner : @Jaehype
+╰───────────────────╯`, getMainMenu());
   }
 
   async function handleCallbackQuery(query) {
