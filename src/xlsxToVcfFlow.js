@@ -141,7 +141,13 @@ function createXlsxToVcfFlow(bot, sessions) {
 
   async function handleCancel(chatId) {
     resetSession(sessions, chatId);
-    await bot.sendMessage(chatId, 'Dibatalkan. Kembali ke Menu Awal.', getMainMenu());
+    await bot.sendMessage(chatId, `╭─❖ *SELAMAT DATANG* ❖─╮
+📑 Convert All File ➝ VCF
+🔹 Pilih menu untuk mulai
+
+📢 Ads : @PanoramaaStoree
+👑 Owner : @Jaehype
+╰───────────────────╯`, getMainMenu());
   }
 
   async function acceptXlsxDocument(chatId, session, doc) {
