@@ -2,12 +2,9 @@
 const fs = require('fs');
 const path = require('path');
 
-// Safe optional stop manager
-let stop = { shouldStop: () => false };
-try {
-  // eslint-disable-next-line global-require
-  stop = require('./stopManager');
-} catch (_) {}
+// Safe optional stop manager (punya cancel token)
+let stop = { shouldStop: () => false, snapshot: () => 0, shouldAbort: () => false };
+try { stop = require('./stopManager'); } catch (_) {}
 
 const {
   actions,
@@ -287,6 +284,10 @@ function createTxtToVcfFlow(bot, sessions) {
             return;
           }
 
+          // Cancel token snapshot
+          const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+          let aborted = false;
+
           // Prepare filenames according to choice
           let finalFilenames = [];
           if (session.filenameChoice === 'custom' && session.outputBaseName) {
@@ -298,7 +299,8 @@ function createTxtToVcfFlow(bot, sessions) {
           let producedCount = 0;
 
           for (let i = 0; i < filesToProcess.length; i++) {
-            if (stop.shouldStop && stop.shouldStop(chatId)) {
+            if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+              aborted = true;
               await bot.sendMessage(chatId, 'Dihentikan.');
               break;
             }
@@ -308,11 +310,7 @@ function createTxtToVcfFlow(bot, sessions) {
 
             // Do not deduplicate to preserve exactly what user provided (order and duplicates)
             const normalized = normalizeNumbers(tokens, { deduplicate: false, minDigits: 6 });
-
-            if (!normalized.length) {
-              // Skip this file silently; if all skipped we'll inform later
-              continue;
-            }
+            if (!normalized.length) continue;
 
             const vcfBuffer = buildVcf(normalized, session.contactName);
 
@@ -333,12 +331,13 @@ function createTxtToVcfFlow(bot, sessions) {
               }
             }
 
-            // Send without caption using a temporary file path to avoid Buffer file-type issues
+            // Temp file + checkpoint
             ensureTmpDir();
             const outPath = path.join(TMP_DIR, filename);
             await fs.promises.writeFile(outPath, vcfBuffer);
 
-            if (stop.shouldStop && stop.shouldStop(chatId)) {
+            if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
+              aborted = true;
               await fs.promises.unlink(outPath).catch(() => {});
               await bot.sendMessage(chatId, 'Dihentikan.');
               break;
@@ -346,11 +345,10 @@ function createTxtToVcfFlow(bot, sessions) {
 
             await bot.sendDocument(chatId, outPath);
             await fs.promises.unlink(outPath).catch(() => {});
-
             producedCount++;
           }
 
-          if (producedCount === 0) {
+          if (producedCount === 0 && !aborted) {
             await bot.sendMessage(
               chatId,
               'Tidak ditemukan nomor yang valid setelah pembersihan.',
@@ -360,9 +358,10 @@ function createTxtToVcfFlow(bot, sessions) {
             return;
           }
 
-          // Kirim pesan terpisah setelah semua file terkirim
-          await bot.sendMessage(chatId, 'File berhasil dikonversi');
-          // HAPUS pengiriman "Selesai."
+          if (!aborted) {
+            await bot.sendMessage(chatId, 'File berhasil dikonversi');
+            // tidak kirim "Selesai."
+          }
         } catch (err) {
           console.error('Processing error:', err);
           await bot.sendMessage(
