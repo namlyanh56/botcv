@@ -10,6 +10,7 @@ const { createMergeFlow } = require('./src/mergeFlow');
 const { createXlsxToVcfFlow } = require('./src/xlsxToVcfFlow');
 const { createRenameFlow } = require('./src/renameFlow');
 const stop = require('./src/stopManager');
+const ent = require('./src/entitlements');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -20,6 +21,7 @@ if (!BOT_TOKEN) {
 
 async function main() {
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+  ent.init();
 
   // Separate sessions per flow
   const sessionsTxtToVcf = new Map();
@@ -38,8 +40,66 @@ async function main() {
   const xlsxFlow = createXlsxToVcfFlow(bot, sessionsXlsx);
   const renameFlow = createRenameFlow(bot, sessionsRename);
 
+  // Helpers: guard access
+  function recordAndGuard(msgOrQuery) {
+    try {
+      if (msgOrQuery.from) ent.ensureUserFromMessage({ from: msgOrQuery.from });
+    } catch (_) {}
+    const uid = (msgOrQuery.from && msgOrQuery.from.id) || (msgOrQuery.message && msgOrQuery.message.from && msgOrQuery.message.from.id);
+    if (!uid) return false;
+    return ent.isAllowed(uid);
+  }
+
+  // Admin commands (only admins)
+  bot.onText(/^\/whoami$/, async (msg) => {
+    ent.ensureUserFromMessage(msg);
+    const u = ent.getUser(msg.from.id);
+    const isAdmin = ent.isAdmin(msg.from.id);
+    await bot.sendMessage(msg.chat.id,
+      `ID: ${msg.from.id}\nUsername: @${msg.from.username || '-'}\nRole: ${u?.role || '-'}\nStatus: ${u?.status || '-'}\nAdmin: ${isAdmin ? 'ya' : 'tidak'}`,
+      { reply_markup: { remove_keyboard: false } }
+    );
+  });
+
+  bot.onText(/^\/allow\s+(\d+)$/, async (msg, m) => {
+    if (!ent.isAdmin(msg.from.id)) return;
+    const target = Number(m[1]);
+    ent.allowUser(target);
+    await bot.sendMessage(msg.chat.id, `User ${target} diizinkan (allowed).`);
+  });
+
+  bot.onText(/^\/block\s+(\d+)$/, async (msg, m) => {
+    if (!ent.isAdmin(msg.from.id)) return;
+    const target = Number(m[1]);
+    ent.blockUser(target);
+    await bot.sendMessage(msg.chat.id, `User ${target} diblokir.`);
+  });
+
+  bot.onText(/^\/grantpro\s+(\d+)(?:\s+(\d+))?$/, async (msg, m) => {
+    if (!ent.isAdmin(msg.from.id)) return;
+    const target = Number(m[1]);
+    const days = m[2] ? Number(m[2]) : null;
+    ent.grantPro(target, days);
+    await bot.sendMessage(msg.chat.id, `User ${target} dinaikkan ke PRO${days ? ` selama ${days} hari` : ' (lifetime)'}.`);
+  });
+
+  bot.onText(/^\/revokepro\s+(\d+)$/, async (msg, m) => {
+    if (!ent.isAdmin(msg.from.id)) return;
+    const target = Number(m[1]);
+    ent.revokePro(target);
+    await bot.sendMessage(msg.chat.id, `PRO user ${target} dicabut (kembali allowed).`);
+  });
+
   // /start hanya untuk memunculkan Reply Keyboard utama (tanpa inline pesan menu)
   bot.onText(/^\/start$/, async (msg) => {
+    ent.ensureUserFromMessage(msg);
+    if (!recordAndGuard(msg)) {
+      await bot.sendMessage(
+        msg.chat.id,
+        'Akses ditolak. Hubungi admin untuk mendapatkan izin.'
+      );
+      return;
+    }
     await bot.sendMessage(
       msg.chat.id,
       'Pilih fitur melalui keyboard di bawah.',
@@ -49,6 +109,14 @@ async function main() {
 
   // Callback queries untuk semua inline langkah lanjutan
   bot.on('callback_query', async (query) => {
+    // Guard akses untuk callback juga
+    if (!recordAndGuard(query)) {
+      try {
+        await bot.answerCallbackQuery(query.id, { text: 'Akses ditolak.', show_alert: true });
+      } catch (_) {}
+      return;
+    }
+
     await txtToVcfFlow.handleCallbackQuery(query);
     await vcfToTxtFlow.handleCallbackQuery(query);
     await splitFlow.handleCallbackQuery(query);
@@ -60,9 +128,8 @@ async function main() {
 
   // Hentikan semua proses aman
   async function stopAll(chatId) {
-    // Set bendera stop agar loop pengiriman berhenti di titik aman (bump cancel token)
+    // bump cancel token
     stop.requestStop(chatId);
-
     // Reset semua sesi flow untuk chat ini
     sessionsTxtToVcf.delete(chatId);
     sessionsVcfToTxt.delete(chatId);
@@ -75,11 +142,7 @@ async function main() {
     try {
       await bot.sendMessage(chatId, 'Semua proses dihentikan.');
     } catch (_) {}
-
-    // PENTING: Jangan clearStop di sini. Biarkan cancel token tetap meningkat
-    // agar proses yang sedang berjalan mendeteksi perubahan token dan berhenti sendiri.
-    // Flag legacy bisa dibersihkan saat user memulai flow baru bila diperlukan.
-    // stop.clearStop(chatId); // dihapus
+    // Jangan clearStop di sini; biarkan token tetap meningkat.
   }
 
   // Router tombol Reply Keyboard (MENU UTAMA)
@@ -123,8 +186,18 @@ async function main() {
   }
 
   bot.on('message', async (msg) => {
-    // Abaikan /start (sudah ditangani)
+    // Ignore /start (handled above)
     if (msg.text && /^\/start$/.test(msg.text)) return;
+
+    // Record user + guard
+    ent.ensureUserFromMessage(msg);
+    if (!recordAndGuard(msg)) {
+      await bot.sendMessage(
+        msg.chat.id,
+        '*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji Coba*.'
+      );
+      return;
+    }
 
     // Coba routing oleh Reply Keyboard (MENU UTAMA)
     const handledByMainMenu = await routeMainMenuByText(msg);
