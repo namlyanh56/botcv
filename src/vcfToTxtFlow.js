@@ -92,7 +92,13 @@ function createVcfToTxtFlow(bot, sessions) {
     resetSession(sessions, chatId);
     await bot.sendMessage(
       chatId,
-      'Dibatalkan. Kembali ke Menu Awal.',
+      `╭─❖ *SELAMAT DATANG* ❖─╮
+📑 Convert All File ➝ VCF
+🔹 Pilih menu untuk mulai
+
+📢 Ads : @PanoramaaStoree
+👑 Owner : @Jaehype
+╰───────────────────╯`,
       getMainMenu()
     );
   }
