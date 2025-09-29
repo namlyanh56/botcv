@@ -3,11 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Safe optional stop manager
-let stop = { shouldStop: () => false };
-try {
-  // eslint-disable-next-line global-require
-  stop = require('./stopManager');
-} catch (_) {}
+let stop = { shouldStop: () => false, snapshot: () => 0, shouldAbort: () => false };
+try { stop = require('./stopManager'); } catch (_) {}
 
 const {
   actions,
@@ -92,25 +89,20 @@ function parseAdminMessageToCategories(text) {
 
   for (const line of lines) {
     if (!line) {
-      // allow blank as separator; just skip
       continue;
     }
     if (isHeaderLine(line)) {
-      // Start new category
       current = { name: line, numbers: [] };
       cats.push(current);
       continue;
     }
-    // number candidate line; must have current category
     if (!current) {
-      // number without a preceding category -> invalid structure
       return { ok: false, categories: [] };
     }
     current.numbers.push(line);
   }
 
   if (cats.length === 0) return { ok: false, categories: [] };
-  // ensure each category has at least one number
   for (const c of cats) {
     if (!c.numbers || c.numbers.length === 0) return { ok: false, categories: [] };
   }
@@ -150,7 +142,6 @@ function createAdminFromMessageFlow(bot, sessions) {
 
       await bot.answerCallbackQuery(query.id);
 
-      // Only respond if flow is active (no spam)
       if (data === actions.CANCEL) {
         if (s.state !== STATES.IDLE) {
           return handleCancel(chatId);
@@ -191,9 +182,8 @@ function createAdminFromMessageFlow(bot, sessions) {
         let totalAdded = 0;
         const prepared = [];
         for (const c of categories) {
-          // dedup per category
           const normalized = normalizeNumbers(c.numbers, { deduplicate: true, minDigits: 6 });
-          if (normalized.length === 0) continue; // skip empty after normalization
+          if (normalized.length === 0) continue;
 
           const spaceLeft = MAX_TOTAL_NUMBERS - totalAdded;
           if (spaceLeft <= 0) break;
@@ -242,12 +232,12 @@ function createAdminFromMessageFlow(bot, sessions) {
       const pairs = [];
       for (const cat of s.categories) {
         const nums = cat.numbers || [];
-        const baseName = cat.name; // FIX: typo 'the baseName' -> 'const baseName'
+        const baseName = cat.name;
         if (nums.length === 1) {
           pairs.push({ name: baseName, number: nums[0] });
         } else {
           nums.forEach((num, idx) => {
-            pairs.push({ name: `${baseName} ${idx + 1}`, number: num }); // no padding
+            pairs.push({ name: `${baseName} ${idx + 1}`, number: num });
           });
         }
       }
@@ -258,13 +248,15 @@ function createAdminFromMessageFlow(bot, sessions) {
         return;
       }
 
+      const token = stop.snapshot ? stop.snapshot(chatId) : 0;
+
       const vcfBuffer = buildVcfFromPairs(pairs);
 
       ensureTmpDir();
       const outPath = path.join(TMP_DIR, s.outputFileName || 'contacts.vcf');
       await fs.promises.writeFile(outPath, vcfBuffer);
 
-      if (stop.shouldStop && stop.shouldStop(chatId)) {
+      if (stop.shouldAbort && stop.shouldAbort(chatId, token)) {
         await fs.promises.unlink(outPath).catch(() => {});
         await bot.sendMessage(chatId, 'Dihentikan.');
         return;
@@ -274,7 +266,7 @@ function createAdminFromMessageFlow(bot, sessions) {
       await fs.promises.unlink(outPath).catch(() => {});
 
       await bot.sendMessage(chatId, 'File berhasil dikonversi');
-      // HAPUS pengiriman "Selesai."
+      // Tidak kirim "Selesai."
     } catch (err) {
       console.error('adminFromMessage processing error:', err);
       await bot.sendMessage(
