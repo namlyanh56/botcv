@@ -96,7 +96,8 @@ async function main() {
     if (!recordAndGuard(msg)) {
       await bot.sendMessage(
         msg.chat.id,
-        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.`
+        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.`,
+        { parse_mode: 'Markdown' }
       );
       return;
     }
@@ -201,7 +202,8 @@ async function main() {
     if (!recordAndGuard(msg)) {
       await bot.sendMessage(
         msg.chat.id,
-        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji Coba*.`
+        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji Coba*.`,
+        { parse_mode: 'Markdown' }
       );
       return;
     }
