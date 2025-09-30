@@ -47,13 +47,14 @@ function upsertUser(user) {
   const prev = db.users[id] || {};
   db.users[id] = {
     id: Number(id),
-    username: user.username || prev.username || '',
-    first_name: user.first_name || prev.first_name || '',
-    last_name: user.last_name || prev.last_name || '',
-    role: user.role || prev.role || 'free',         // admin | allowed | trial | pro | free | blocked
-    status: user.status || prev.status || 'active', // active | blocked
+    username: user.username ?? prev.username ?? '',
+    first_name: user.first_name ?? prev.first_name ?? '',
+    last_name: user.last_name ?? prev.last_name ?? '',
+    role: user.role ?? prev.role ?? 'free',         // admin | allowed | trial | pro | free | blocked
+    status: user.status ?? prev.status ?? 'active', // active | blocked
     trial_expires_at: user.trial_expires_at ?? prev.trial_expires_at ?? null,
     pro_expires_at: user.pro_expires_at ?? prev.pro_expires_at ?? null,
+    trial_used: user.trial_used ?? prev.trial_used ?? false, // mark if user has already taken trial once
     created_at: prev.created_at || now,
     updated_at: now,
   };
