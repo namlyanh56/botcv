@@ -1,5 +1,5 @@
 // Authorization + entitlement helpers for allowlist + roles.
-// Ready to be wired to payment webhooks later.
+// Ready for payment + trial.
 
 const store = require('./accessStore');
 
@@ -37,6 +37,21 @@ function isAdmin(userId) {
   return !!u && u.role === 'admin';
 }
 
+function isTrialActive(u) {
+  if (!u) return false;
+  if (u.role !== 'trial') return false;
+  if (!u.trial_expires_at) return false;
+  return Date.now() <= Number(u.trial_expires_at);
+}
+
+function isProActive(u) {
+  if (!u) return false;
+  if (u.role !== 'pro') return false;
+  // null/undefined = lifetime
+  if (u.pro_expires_at == null) return true;
+  return Date.now() <= Number(u.pro_expires_at);
+}
+
 function isAllowed(userId) {
   const id = Number(userId);
   if (isAdmin(id)) return true;
@@ -48,15 +63,33 @@ function isAllowed(userId) {
   if (!u) return false;
   if (u.status === 'blocked') return false;
 
-  // allowed roles
-  if (['allowed', 'trial', 'pro'].includes(u.role)) {
-    // Optional: check expiry for trial/pro if you want strict gating now
-    return true;
-  }
+  // allowed roles with validity check
+  if (u.role === 'allowed') return true;
+  if (isTrialActive(u)) return true;
+  if (isProActive(u)) return true;
   return false;
 }
 
-// Admin ops
+// Trial management
+function startTrial(userId, days = 3) {
+  const now = Date.now();
+  const u = store.getUser(userId) || store.upsertUser({ id: userId });
+  // If already used once, reject
+  const alreadyUsed = !!u.trial_used;
+  if (alreadyUsed) {
+    return { ok: false, reason: 'already_used', user: u };
+  }
+  // If currently active trial, keep it (don't extend)
+  if (u.role === 'trial' && u.trial_expires_at && now <= Number(u.trial_expires_at)) {
+    return { ok: true, already: true, expires_at: Number(u.trial_expires_at), user: u };
+  }
+  const expires = now + Number(days) * 24 * 60 * 60 * 1000;
+  store.setFields(userId, { trial_expires_at: expires, trial_used: true });
+  store.setRole(userId, 'trial');
+  const nu = store.getUser(userId);
+  return { ok: true, already: false, expires_at: expires, user: nu };
+}
+
 function allowUser(userId) {
   const u = store.getUser(userId) || store.upsertUser({ id: userId });
   if (!u) return null;
@@ -82,7 +115,7 @@ function grantPro(userId, days = null) {
 
 function revokePro(userId) {
   store.setFields(userId, { pro_expires_at: null });
-  return store.setRole(userId, 'allowed'); // fallback to allowed, not blocked
+  return store.setRole(userId, 'allowed'); // fallback to allowed
 }
 
 module.exports = {
@@ -91,6 +124,7 @@ module.exports = {
   getUser,
   isAdmin,
   isAllowed,
+  startTrial,
   allowUser,
   blockUser,
   grantPro,
