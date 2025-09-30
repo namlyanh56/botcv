@@ -21,7 +21,7 @@ const actions = {
   SPLIT_MODE_CONTACTS: 'action:split_file:mode_contacts',
   SPLIT_MODE_FILES: 'action:split_file:mode_files',
 
-  // Trial
+  // Trial (ke depan tidak pakai callback lagi, tapi biarkan tetap ada untuk kompatibilitas)
   START_TRIAL: 'action:trial:start',
 
   CANCEL: 'action:cancel',
@@ -37,6 +37,7 @@ const menuLabels = {
   MERGE_FILES: '🔗 Gabung File 🔗',
   RENAME: '⚡ Rename ⚡',
   STOP: '⛔ Stop ⛔',
+  TRIAL: '🎁 Uji coba 🎁',
 };
 
 // MENU UTAMA: Reply Keyboard (persisten di bawah kolom chat)
@@ -51,6 +52,20 @@ function getMainMenu() {
         [{ text: menuLabels.SPLIT_FILE }, { text: menuLabels.MERGE_FILES }],
         // Tambahan
         [{ text: menuLabels.RENAME }, { text: menuLabels.STOP }],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
+      is_persistent: true,
+    },
+  };
+}
+
+// Keyboard khusus bila akses ditolak: hanya tampilkan tombol Uji coba
+function getTrialOnlyMenu() {
+  return {
+    reply_markup: {
+      keyboard: [
+        [{ text: menuLabels.TRIAL }],
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
@@ -123,25 +138,14 @@ function getRenameModeMenu() {
   };
 }
 
-// Inline keyboard ketika akses ditolak: tawarkan trial
-function getTrialMenu() {
-  return {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎁 Uji coba 🎁', callback_data: actions.START_TRIAL }],
-      ],
-    },
-  };
-}
-
 module.exports = {
   actions,
   menuLabels,
   getMainMenu,
+  getTrialOnlyMenu,
   getCancelMenu,
   getFilenameChoiceMenu,
   getSplitModeMenu,
   getMergeCollectMenu,
   getRenameModeMenu,
-  getTrialMenu,
 };
