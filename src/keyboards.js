@@ -21,6 +21,9 @@ const actions = {
   SPLIT_MODE_CONTACTS: 'action:split_file:mode_contacts',
   SPLIT_MODE_FILES: 'action:split_file:mode_files',
 
+  // Trial
+  START_TRIAL: 'action:trial:start',
+
   CANCEL: 'action:cancel',
 };
 
@@ -120,6 +123,17 @@ function getRenameModeMenu() {
   };
 }
 
+// Inline keyboard ketika akses ditolak: tawarkan trial
+function getTrialMenu() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🎁 Uji coba 🎁', callback_data: actions.START_TRIAL }],
+      ],
+    },
+  };
+}
+
 module.exports = {
   actions,
   menuLabels,
@@ -129,4 +143,5 @@ module.exports = {
   getSplitModeMenu,
   getMergeCollectMenu,
   getRenameModeMenu,
+  getTrialMenu,
 };
