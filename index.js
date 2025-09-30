@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const TelegramBot = require('node-telegram-bot-api');
-const { getMainMenu, menuLabels, getTrialMenu, actions } = require('./src/keyboards');
+const { getMainMenu, menuLabels, getTrialOnlyMenu, actions } = require('./src/keyboards');
 const { createTxtToVcfFlow } = require('./src/txtToVcfFlow');
 const { createVcfToTxtFlow } = require('./src/vcfToTxtFlow');
 const { createSplitFlow } = require('./src/splitFlow');
@@ -99,20 +99,11 @@ async function main() {
     await bot.sendMessage(msg.chat.id, `PRO user ${target} dicabut (kembali allowed).`);
   });
 
-  // /start hanya untuk memunculkan Reply Keyboard utama (tanpa inline pesan menu)
-  bot.onText(/^\/start$/, async (msg) => {
-    ent.ensureUserFromMessage(msg);
-    if (!recordAndGuard(msg)) {
-      await bot.sendMessage(
-        msg.chat.id,
-        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.`,
-        { ...getTrialMenu(), parse_mode: 'Markdown' }
-      );
-      return;
-    }
+  // Util: kirim menu Welcome (setelah akses tersedia)
+  async function sendWelcomeMenu(chatId) {
     const menuOpts = getMainMenu();
     await bot.sendMessage(
-      msg.chat.id,
+      chatId,
       `╭─❖ *SELAMAT DATANG* ❖─╮
 📑 Convert All File ➝ VCF
 🔹 Pilih menu untuk mulai
@@ -122,51 +113,57 @@ async function main() {
 ╰───────────────────╯`,
       { ...menuOpts, parse_mode: 'Markdown' }
     );
-  });
+  }
 
-  // Callback queries untuk semua inline langkah lanjutan
-  bot.on('callback_query', async (query) => {
-    const data = query.data || '';
+  // TRIAL handler (dipanggil dari tombol Reply Keyboard)
+  async function handleTrial(chatId, userId) {
+    const res = ent.startTrial(userId, 3);
+    if (!res.ok && res.reason === 'already_used') {
+      await bot.sendMessage(chatId, 'Maaf, uji coba sudah pernah digunakan.');
+      return;
+    }
+    const expiresAt = res.expires_at || (res.user && res.user.trial_expires_at);
+    const until = expiresAt ? formatWIB(expiresAt) : '-';
 
-    // Tangani tombol TRIAL terlebih dahulu (tanpa guard)
-    if (data === actions.START_TRIAL) {
-      const uid = query.from.id;
-      const res = ent.startTrial(uid, 3);
-      try { await bot.answerCallbackQuery(query.id); } catch (_) {}
-
-      if (!res.ok && res.reason === 'already_used') {
-        await bot.sendMessage(
-          query.message.chat.id,
-          `Maaf, uji coba sudah pernah digunakan.`
-        );
-        return;
-      }
-
-      const expiresAt = res.expires_at || (res.user && res.user.trial_expires_at);
-      const until = expiresAt ? formatWIB(expiresAt) : '';
-      // Pesan trial sesuai permintaan + efek emoji 🎉 bila didukung
-      await bot.sendMessage(
-        query.message.chat.id,
-        `╔═════════════╗  
+    // Teks sesuai permintaan, tanggal ditulis di baris "berlaku sampai:"
+    await bot.sendMessage(
+      chatId,
+      `╔═════════════╗  
 🎊 *TRIAL BERHASIL!* 🎊   ╚═════════════╝  
 *nikmati semua layanan selama 3 hari*
-_berlaku sampai _: 
+_berlaku sampai_: ${until}
 
 📚 Convert file VCF cepat & praktis  
 🔥 Fitur tambahan siap dieksplorasi
 👑 UI mudah dipahami, bersih.`,
-        {
-          parse_mode: 'Markdown',
-          message_effect_id: '5104841245755180586', // 🎉 confetti (abaikan jika tidak didukung)
-        }
-      );
-      if (until) {
-        await bot.sendMessage(query.message.chat.id, `➡️ ${until}`, { parse_mode: 'Markdown' });
+      {
+        parse_mode: 'Markdown',
+        // Efek animasi 🎉 (abaikan jika klien tidak mendukung)
+        message_effect_id: '5104841245755180586',
       }
+    );
+
+    // Setelah berhasil, arahkan langsung ke Menu Utama
+    await sendWelcomeMenu(chatId);
+  }
+
+  // /start hanya untuk memunculkan Reply Keyboard
+  bot.onText(/^\/start$/, async (msg) => {
+    ent.ensureUserFromMessage(msg);
+    if (!recordAndGuard(msg)) {
+      await bot.sendMessage(
+        msg.chat.id,
+        `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.`,
+        { ...getTrialOnlyMenu(), parse_mode: 'Markdown' }
+      );
       return;
     }
+    await sendWelcomeMenu(msg.chat.id);
+  });
 
-    // Guard akses untuk callback lain
+  // Callback queries untuk semua inline langkah lanjutan
+  bot.on('callback_query', async (query) => {
+    // Di desain baru, TRIAL via Reply Keyboard, jadi tidak diproses di callback.
     if (!recordAndGuard(query)) {
       try {
         await bot.answerCallbackQuery(query.id, { text: 'Akses ditolak.', show_alert: true });
@@ -243,16 +240,24 @@ _berlaku sampai _:
   }
 
   bot.on('message', async (msg) => {
-    // Ignore /start (handled above)
+    // Abaikan /start (ditangani di handler /start)
     if (msg.text && /^\/start$/.test(msg.text)) return;
 
-    // Record user + guard
+    // Jika user menekan tombol Uji coba di Reply Keyboard,
+    // proses TRIAL lebih dulu TANPA guard.
+    if ((msg.text || '').trim() === menuLabels.TRIAL) {
+      ent.ensureUserFromMessage(msg);
+      await handleTrial(msg.chat.id, msg.from.id);
+      return;
+    }
+
+    // Record user + guard untuk selain TRIAL
     ent.ensureUserFromMessage(msg);
     if (!recordAndGuard(msg)) {
       await bot.sendMessage(
         msg.chat.id,
         `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji Coba*.`,
-        { ...getTrialMenu(), parse_mode: 'Markdown' }
+        { ...getTrialOnlyMenu(), parse_mode: 'Markdown' }
       );
       return;
     }
