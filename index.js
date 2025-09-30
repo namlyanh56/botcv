@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const TelegramBot = require('node-telegram-bot-api');
-const { getMainMenu, menuLabels } = require('./src/keyboards');
+const { getMainMenu, menuLabels, getTrialMenu, actions } = require('./src/keyboards');
 const { createTxtToVcfFlow } = require('./src/txtToVcfFlow');
 const { createVcfToTxtFlow } = require('./src/vcfToTxtFlow');
 const { createSplitFlow } = require('./src/splitFlow');
@@ -17,6 +17,15 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
   console.error('Missing BOT_TOKEN in environment. Please set it in .env');
   process.exit(1);
+}
+
+// helper format tanggal Indonesia (WIB)
+function formatWIB(ts) {
+  try {
+    return new Date(ts).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false });
+  } catch {
+    return new Date(ts).toLocaleString('id-ID', { hour12: false });
+  }
 }
 
 async function main() {
@@ -97,7 +106,7 @@ async function main() {
       await bot.sendMessage(
         msg.chat.id,
         `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji coba*.`,
-        { parse_mode: 'Markdown' }
+        { ...getTrialMenu(), parse_mode: 'Markdown' }
       );
       return;
     }
@@ -117,7 +126,47 @@ async function main() {
 
   // Callback queries untuk semua inline langkah lanjutan
   bot.on('callback_query', async (query) => {
-    // Guard akses untuk callback juga
+    const data = query.data || '';
+
+    // Tangani tombol TRIAL terlebih dahulu (tanpa guard)
+    if (data === actions.START_TRIAL) {
+      const uid = query.from.id;
+      const res = ent.startTrial(uid, 3);
+      try { await bot.answerCallbackQuery(query.id); } catch (_) {}
+
+      if (!res.ok && res.reason === 'already_used') {
+        await bot.sendMessage(
+          query.message.chat.id,
+          `Maaf, uji coba sudah pernah digunakan.`
+        );
+        return;
+      }
+
+      const expiresAt = res.expires_at || (res.user && res.user.trial_expires_at);
+      const until = expiresAt ? formatWIB(expiresAt) : '';
+      // Pesan trial sesuai permintaan + efek emoji 🎉 bila didukung
+      await bot.sendMessage(
+        query.message.chat.id,
+        `╔═════════════╗  
+🎊 *TRIAL BERHASIL!* 🎊   ╚═════════════╝  
+*nikmati semua layanan selama 3 hari*
+_berlaku sampai _: 
+
+📚 Convert file VCF cepat & praktis  
+🔥 Fitur tambahan siap dieksplorasi
+👑 UI mudah dipahami, bersih.`,
+        {
+          parse_mode: 'Markdown',
+          message_effect_id: '5104841245755180586', // 🎉 confetti (abaikan jika tidak didukung)
+        }
+      );
+      if (until) {
+        await bot.sendMessage(query.message.chat.id, `➡️ ${until}`, { parse_mode: 'Markdown' });
+      }
+      return;
+    }
+
+    // Guard akses untuk callback lain
     if (!recordAndGuard(query)) {
       try {
         await bot.answerCallbackQuery(query.id, { text: 'Akses ditolak.', show_alert: true });
@@ -203,7 +252,7 @@ async function main() {
       await bot.sendMessage(
         msg.chat.id,
         `*Akses ditolak. Hubungi admin @JaeHype untuk mendapatkan izin Uji Coba*.`,
-        { parse_mode: 'Markdown' }
+        { ...getTrialMenu(), parse_mode: 'Markdown' }
       );
       return;
     }
